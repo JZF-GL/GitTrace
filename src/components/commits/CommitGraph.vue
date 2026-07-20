@@ -12,14 +12,14 @@ const emit = defineEmits<{
   (e: 'select', commit: GraphCommit): void
 }>()
 
-const columnWidth = 24
+const columnWidth = 20
 const rowHeight = 40
 const nodeRadius = 5
-const graphLeftPad = 12
+const graphLeftPad = 8
 
 const graphWidth = computed(() => {
   const maxCol = Math.max(...props.commits.map(c => c.column), 0)
-  return (maxCol + 1) * columnWidth + graphLeftPad * 2
+  return (maxCol + 1) * columnWidth + graphLeftPad
 })
 
 const graphHeight = computed(() => props.commits.length * rowHeight)
@@ -77,7 +77,6 @@ function formatDate(dateStr: string): string {
       class="graph-overlay"
       :width="graphWidth"
       :height="graphHeight"
-      :viewBox="`0 0 ${graphWidth} ${graphHeight}`"
     >
       <!-- Connection lines -->
       <line
@@ -129,20 +128,17 @@ function formatDate(dateStr: string): string {
 
 <style scoped>
 .commit-graph-wrapper {
-  position: relative;
+  display: flex;
 }
 
 .graph-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1;
+  flex-shrink: 0;
   pointer-events: none;
 }
 
 .commit-rows {
-  position: relative;
-  z-index: 2;
+  flex: 1;
+  min-width: 0;
 }
 
 .commit-row {
@@ -163,7 +159,7 @@ function formatDate(dateStr: string): string {
 
 .commit-info {
   flex: 1;
-  padding: 0 12px 0 28px;
+  padding: 0 12px 0 8px;
   min-width: 0;
   overflow: hidden;
   display: flex;

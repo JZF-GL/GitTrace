@@ -68,6 +68,7 @@ export async function getLogGraph(repoPath: string, maxCount: number = 200): Pro
     '--format=%H|%P|%h|%an|%ai|%s',
     `--max-count=${maxCount}`,
   ])
+  console.log('[GitService] logGraph raw output (first 1000 chars):', result.substring(0, 1000))
   return result
 }
 

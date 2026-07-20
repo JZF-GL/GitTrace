@@ -92,6 +92,7 @@ function selectCommit(commit: GraphCommit) {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  padding: 10px 0;
 }
 
 .loading {
