@@ -140,7 +140,9 @@ function getStatusClass(file: FileChange): string {
             提交
           </NButton>
           <NButton size="small" :loading="pulling" :disabled="pushing" @click="handlePull">拉取</NButton>
-          <NButton size="small" :loading="pushing" :disabled="pulling" @click="handlePush">推送</NButton>
+          <NButton size="small" :loading="pushing" :disabled="pulling" @click="handlePush">
+            推送 {{ stagingStore.ahead > 0 ? '(' + stagingStore.ahead + ')' : '' }}
+          </NButton>
         </div>
       </div>
 

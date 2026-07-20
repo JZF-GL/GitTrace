@@ -13,6 +13,8 @@ export const useStagingStore = defineStore('staging', () => {
   const loading = ref(false)
   const selectedFiles = ref<Set<string>>(new Set())
   const commitMessage = ref('')
+  const ahead = ref(0)
+  const behind = ref(0)
 
   const stagedFiles = computed(() =>
     files.value.filter(f => f.index && f.index !== ' ')
@@ -43,6 +45,8 @@ export const useStagingStore = defineStore('staging', () => {
       } else {
         files.value = []
       }
+      ahead.value = status.ahead || 0
+      behind.value = status.behind || 0
       console.log('[StagingStore] files set to:', files.value)
     } catch (e) {
       console.error('[StagingStore] fetchStatus error:', e)
@@ -116,6 +120,8 @@ export const useStagingStore = defineStore('staging', () => {
     loading,
     selectedFiles,
     commitMessage,
+    ahead,
+    behind,
     stagedFiles,
     unstagedFiles,
     untrackedFiles,
