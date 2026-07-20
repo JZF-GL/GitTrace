@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { NButton, NInput, NSpace, NEmpty, useMessage } from 'naive-ui'
+import { NButton, NInput, NSpace, NEmpty, NSelect, useMessage } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useStagingStore, type FileChange } from '../../stores/staging'
 import { useCommitsStore } from '../../stores/commits'
@@ -16,6 +16,21 @@ const selectedFileStaged = ref(false)
 const repo = computed(() => repoStore.currentRepo)
 const pushing = ref(false)
 const pulling = ref(false)
+const commitType = ref<string | null>(null)
+
+const commitTypeOptions = [
+  { label: 'feat', value: 'feat' },
+  { label: 'fix', value: 'fix' },
+  { label: 'docs', value: 'docs' },
+  { label: 'style', value: 'style' },
+  { label: 'refactor', value: 'refactor' },
+  { label: 'perf', value: 'perf' },
+  { label: 'test', value: 'test' },
+  { label: 'build', value: 'build' },
+  { label: 'ci', value: 'ci' },
+  { label: 'chore', value: 'chore' },
+  { label: 'revert', value: 'revert' },
+]
 
 const stagedFiles = computed(() => stagingStore.stagedFiles)
 const unstagedFiles = computed(() => [...stagingStore.unstagedFiles, ...stagingStore.untrackedFiles])
@@ -53,11 +68,14 @@ async function handleDiscard(file: FileChange) {
 async function handleCommit() {
   if (!repo.value || !stagingStore.commitMessage) return
   try {
-    await window.electronAPI.git.commit(repo.value.path, stagingStore.commitMessage)
+    const msg = commitType.value ? `${commitType.value}: ${stagingStore.commitMessage}` : stagingStore.commitMessage
+    await window.electronAPI.git.commit(repo.value.path, msg)
     stagingStore.commitMessage = ''
+    commitType.value = null
     await stagingStore.fetchStatus(repo.value.path)
+    message.success('提交成功')
   } catch (e: any) {
-    console.error('Commit failed:', e.message)
+    message.error('提交失败: ' + (e.message || String(e)))
   }
 }
 
@@ -68,6 +86,7 @@ async function handlePush() {
     const result = await window.electronAPI.git.push(repo.value.path)
     if (result.success) {
       message.success('推送成功')
+      await stagingStore.fetchStatus(repo.value.path)
     } else {
       message.error('推送失败: ' + result.message)
     }
@@ -131,6 +150,14 @@ function getStatusClass(file: FileChange): string {
           :autosize="{ minRows: 2, maxRows: 4 }"
         />
         <div class="commit-actions">
+          <NSelect
+            v-model:value="commitType"
+            :options="commitTypeOptions"
+            placeholder="类型"
+            size="small"
+            style="width: 100px"
+            clearable
+          />
           <NButton
             type="primary"
             size="small"
