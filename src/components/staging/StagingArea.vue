@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { NButton, NInput, NSpace, NEmpty } from 'naive-ui'
+import { NButton, NInput, NSpace, NEmpty, useMessage } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useStagingStore, type FileChange } from '../../stores/staging'
 import { useCommitsStore } from '../../stores/commits'
@@ -9,6 +9,7 @@ import DiffViewer from './DiffViewer.vue'
 const repoStore = useRepositoryStore()
 const stagingStore = useStagingStore()
 const commitsStore = useCommitsStore()
+const message = useMessage()
 
 const selectedFile = ref<string | null>(null)
 const selectedFileStaged = ref(false)
@@ -65,10 +66,10 @@ async function handlePush() {
   pushing.value = true
   try {
     const result = await window.electronAPI.git.push(repo.value.path)
-    if (!result.success) {
-      console.error('Push failed:', result.message)
+    if (result.success) {
+      message.success('推送成功')
     } else {
-      console.log('Push success:', result.message)
+      message.error('推送失败: ' + result.message)
     }
   } finally {
     pushing.value = false
@@ -80,15 +81,14 @@ async function handlePull() {
   pulling.value = true
   try {
     const result = await window.electronAPI.git.pull(repo.value.path)
-    if (!result.success) {
-      console.error('Pull failed:', result.message)
-    } else {
-      console.log('Pull success:', result.message)
-      // 刷新状态
+    if (result.success) {
+      message.success('拉取成功')
       await Promise.all([
         stagingStore.fetchStatus(repo.value.path),
         commitsStore.fetchGraph(repo.value.path),
       ])
+    } else {
+      message.error('拉取失败: ' + result.message)
     }
   } finally {
     pulling.value = false
