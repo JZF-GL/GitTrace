@@ -121,19 +121,34 @@ export async function commit(repoPath: string, message: string): Promise<any> {
   }
 }
 
-export async function push(repoPath: string, remote?: string, branch?: string): Promise<void> {
-  const git = getGit(repoPath)
-  await git.push(remote || 'origin', branch)
+export async function push(repoPath: string, remote?: string, branch?: string): Promise<any> {
+  try {
+    const git = getGit(repoPath)
+    const result = await git.push(remote || 'origin', branch)
+    return { success: true, message: '推送成功' }
+  } catch (e: any) {
+    return { success: false, message: e.message || String(e) }
+  }
 }
 
-export async function pull(repoPath: string, remote?: string, branch?: string): Promise<void> {
-  const git = getGit(repoPath)
-  await git.pull(remote || 'origin', branch)
+export async function pull(repoPath: string, remote?: string, branch?: string): Promise<any> {
+  try {
+    const git = getGit(repoPath)
+    const result = await git.pull(remote || 'origin', branch)
+    return { success: true, message: '拉取成功', summary: result.summary }
+  } catch (e: any) {
+    return { success: false, message: e.message || String(e) }
+  }
 }
 
-export async function fetch(repoPath: string, remote?: string): Promise<void> {
-  const git = getGit(repoPath)
-  await git.fetch(remote || 'origin')
+export async function fetch(repoPath: string, remote?: string): Promise<any> {
+  try {
+    const git = getGit(repoPath)
+    await git.fetch(remote || 'origin')
+    return { success: true, message: '获取成功' }
+  } catch (e: any) {
+    return { success: false, message: e.message || String(e) }
+  }
 }
 
 export async function branchList(repoPath: string): Promise<any> {

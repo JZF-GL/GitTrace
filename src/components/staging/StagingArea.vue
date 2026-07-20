@@ -3,14 +3,18 @@ import { computed, ref } from 'vue'
 import { NButton, NInput, NSpace, NEmpty } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useStagingStore, type FileChange } from '../../stores/staging'
+import { useCommitsStore } from '../../stores/commits'
 import DiffViewer from './DiffViewer.vue'
 
 const repoStore = useRepositoryStore()
 const stagingStore = useStagingStore()
+const commitsStore = useCommitsStore()
 
 const selectedFile = ref<string | null>(null)
 const selectedFileStaged = ref(false)
 const repo = computed(() => repoStore.currentRepo)
+const pushing = ref(false)
+const pulling = ref(false)
 
 const stagedFiles = computed(() => stagingStore.stagedFiles)
 const unstagedFiles = computed(() => [...stagingStore.unstagedFiles, ...stagingStore.untrackedFiles])
@@ -57,20 +61,37 @@ async function handleCommit() {
 }
 
 async function handlePush() {
-  if (!repo.value) return
+  if (!repo.value || pushing.value) return
+  pushing.value = true
   try {
-    await window.electronAPI.git.push(repo.value.path)
-  } catch (e: any) {
-    console.error('Push failed:', e.message)
+    const result = await window.electronAPI.git.push(repo.value.path)
+    if (!result.success) {
+      console.error('Push failed:', result.message)
+    } else {
+      console.log('Push success:', result.message)
+    }
+  } finally {
+    pushing.value = false
   }
 }
 
 async function handlePull() {
-  if (!repo.value) return
+  if (!repo.value || pulling.value) return
+  pulling.value = true
   try {
-    await window.electronAPI.git.pull(repo.value.path)
-  } catch (e: any) {
-    console.error('Pull failed:', e.message)
+    const result = await window.electronAPI.git.pull(repo.value.path)
+    if (!result.success) {
+      console.error('Pull failed:', result.message)
+    } else {
+      console.log('Pull success:', result.message)
+      // 刷新状态
+      await Promise.all([
+        stagingStore.fetchStatus(repo.value.path),
+        commitsStore.fetchGraph(repo.value.path),
+      ])
+    }
+  } finally {
+    pulling.value = false
   }
 }
 
@@ -118,8 +139,8 @@ function getStatusClass(file: FileChange): string {
           >
             提交
           </NButton>
-          <NButton size="small" @click="handlePull">拉取</NButton>
-          <NButton size="small" @click="handlePush">推送</NButton>
+          <NButton size="small" :loading="pulling" :disabled="pushing" @click="handlePull">拉取</NButton>
+          <NButton size="small" :loading="pushing" :disabled="pulling" @click="handlePush">推送</NButton>
         </div>
       </div>
 

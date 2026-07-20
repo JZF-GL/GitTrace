@@ -162,8 +162,14 @@ async function handleRefresh() {
   padding: 0;
 }
 
+:deep(.n-tabs-pane-wrapper){
+  height: 100%;
+}
+
 :deep(.n-tab-pane){
   height: 100%;
+  min-height: 100%;
+  padding-top: 0 !important;
 }
 
 :deep(.n-tabs-tab-pane) {
