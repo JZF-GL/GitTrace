@@ -96,16 +96,18 @@ onMounted(fetchStashList)
 
 <style scoped>
 .stash-panel {
-  padding: 16px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
   height: 100%;
+  min-height: 0;
 }
 
 .stash-list {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .stash-item {

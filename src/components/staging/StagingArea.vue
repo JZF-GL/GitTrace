@@ -2,23 +2,27 @@
 import { computed, ref } from 'vue'
 import { NButton, NInput, NSpace, NEmpty } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
-import { useStagingStore } from '../../stores/staging'
-import FileList from './FileList.vue'
+import { useStagingStore, type FileChange } from '../../stores/staging'
 import DiffViewer from './DiffViewer.vue'
 
 const repoStore = useRepositoryStore()
 const stagingStore = useStagingStore()
 
 const selectedFile = ref<string | null>(null)
+const selectedFileStaged = ref(false)
 const repo = computed(() => repoStore.currentRepo)
 
-async function handleStageSelected() {
+const stagedFiles = computed(() => stagingStore.stagedFiles)
+const unstagedFiles = computed(() => [...stagingStore.unstagedFiles, ...stagingStore.untrackedFiles])
+
+async function handleStageFile(path: string) {
   if (!repo.value) return
-  const files = Array.from(stagingStore.selectedFiles)
-  if (files.length > 0) {
-    await stagingStore.stageFiles(repo.value.path, files)
-    stagingStore.clearSelection()
-  }
+  await stagingStore.stageFiles(repo.value.path, [path])
+}
+
+async function handleUnstageFile(path: string) {
+  if (!repo.value) return
+  await stagingStore.unstageFiles(repo.value.path, [path])
 }
 
 async function handleStageAll() {
@@ -26,20 +30,30 @@ async function handleStageAll() {
   await stagingStore.stageAll(repo.value.path)
 }
 
-async function handleUnstageSelected() {
+async function handleUnstageAll() {
   if (!repo.value) return
-  const files = Array.from(stagingStore.selectedFiles)
-  if (files.length > 0) {
-    await stagingStore.unstageFiles(repo.value.path, files)
-    stagingStore.clearSelection()
+  const paths = stagedFiles.value.map(f => f.path)
+  if (paths.length > 0) {
+    await stagingStore.unstageFiles(repo.value.path, paths)
   }
+}
+
+async function handleDiscard(file: FileChange) {
+  if (!repo.value) return
+  // Reset the file to last commit
+  await window.electronAPI.git.reset(repo.value.path, [file.path])
+  await stagingStore.fetchStatus(repo.value.path)
 }
 
 async function handleCommit() {
   if (!repo.value || !stagingStore.commitMessage) return
-  await window.electronAPI.git.commit(repo.value.path, stagingStore.commitMessage)
-  stagingStore.commitMessage = ''
-  await stagingStore.fetchStatus(repo.value.path)
+  try {
+    await window.electronAPI.git.commit(repo.value.path, stagingStore.commitMessage)
+    stagingStore.commitMessage = ''
+    await stagingStore.fetchStatus(repo.value.path)
+  } catch (e: any) {
+    console.error('Commit failed:', e.message)
+  }
 }
 
 async function handlePush() {
@@ -60,68 +74,104 @@ async function handlePull() {
   }
 }
 
-function handleSelectFile(path: string) {
+function handleSelectFile(path: string, staged: boolean) {
   selectedFile.value = path
+  selectedFileStaged.value = staged
+}
+
+function getStatusSymbol(file: FileChange): string {
+  if (file.index === '?' && file.workingDir === '?') return '?'
+  if (file.index === 'A') return 'A'
+  if (file.index === 'D' || file.workingDir === 'D') return 'D'
+  if (file.index === 'R') return 'R'
+  if (file.index === 'M' || file.workingDir === 'M') return 'M'
+  return 'M'
+}
+
+function getStatusClass(file: FileChange): string {
+  if (file.index === '?' && file.workingDir === '?') return 'status-untracked'
+  if (file.index === 'A') return 'status-added'
+  if (file.index === 'D' || file.workingDir === 'D') return 'status-deleted'
+  if (file.index === 'R') return 'status-renamed'
+  return 'status-modified'
 }
 </script>
 
 <template>
   <div class="staging-area">
     <div class="staging-sidebar">
-      <!-- Toolbar -->
-      <div class="staging-toolbar">
-        <NSpace size="small">
-          <NButton size="small" @click="handleStageAll">全部暂存</NButton>
-          <NButton
-            size="small"
-            :disabled="stagingStore.selectedFiles.size === 0"
-            @click="handleStageSelected"
-          >
-            暂存选中
-          </NButton>
-          <NButton
-            size="small"
-            :disabled="stagingStore.selectedFiles.size === 0"
-            @click="handleUnstageSelected"
-          >
-            取消暂存
-          </NButton>
-        </NSpace>
-      </div>
-
-      <!-- File list -->
-      <div class="file-list-container">
-        <NEmpty v-if="stagingStore.files.length === 0" description="工作区干净" />
-        <FileList
-          v-else
-          :files="stagingStore.files"
-          :selected-files="stagingStore.selectedFiles"
-          :selected-file="selectedFile"
-          @select="handleSelectFile"
-          @toggle-select="stagingStore.toggleSelect"
-        />
-      </div>
-
-      <!-- Commit area -->
+      <!-- Commit message -->
       <div class="commit-area">
         <NInput
           v-model:value="stagingStore.commitMessage"
           type="textarea"
           placeholder="提交信息..."
-          :rows="3"
+          :rows="2"
           :autosize="{ minRows: 2, maxRows: 4 }"
         />
-        <NSpace style="margin-top: 8px" size="small">
+        <div class="commit-actions">
           <NButton
             type="primary"
-            :disabled="!stagingStore.commitMessage || stagingStore.stagedFiles.length === 0"
+            size="small"
+            :disabled="!stagingStore.commitMessage || stagedFiles.length === 0"
             @click="handleCommit"
           >
             提交
           </NButton>
-          <NButton @click="handlePull">拉取</NButton>
-          <NButton @click="handlePush">推送</NButton>
-        </NSpace>
+          <NButton size="small" @click="handlePull">拉取</NButton>
+          <NButton size="small" @click="handlePush">推送</NButton>
+        </div>
+      </div>
+
+      <!-- Staged changes -->
+      <div class="file-section" v-if="stagedFiles.length > 0">
+        <div class="section-header">
+          <span class="section-title">已暂存的更改 ({{ stagedFiles.length }})</span>
+          <button class="section-action" @click="handleUnstageAll">全部撤销</button>
+        </div>
+        <div class="file-list">
+          <div
+            v-for="file in stagedFiles"
+            :key="'staged-' + file.path"
+            class="file-item"
+            :class="{ selected: selectedFile === file.path && selectedFileStaged === true }"
+            @click="handleSelectFile(file.path, true)"
+          >
+            <span class="file-status" :class="getStatusClass(file)">{{ getStatusSymbol(file) }}</span>
+            <span class="file-path">{{ file.path }}</span>
+            <button class="file-action unstage" @click.stop="handleUnstageFile(file.path)" title="撤销暂存">
+              &#8722;
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Changes -->
+      <div class="file-section" v-if="unstagedFiles.length > 0">
+        <div class="section-header">
+          <span class="section-title">更改 ({{ unstagedFiles.length }})</span>
+          <button class="section-action" @click="handleStageAll">全部暂存</button>
+        </div>
+        <div class="file-list">
+          <div
+            v-for="file in unstagedFiles"
+            :key="'unstaged-' + file.path"
+            class="file-item"
+            :class="{ selected: selectedFile === file.path && selectedFileStaged === false }"
+            @click="handleSelectFile(file.path, false)"
+          >
+            <span class="file-status" :class="getStatusClass(file)">{{ getStatusSymbol(file) }}</span>
+            <span class="file-path">{{ file.path }}</span>
+            <button class="file-action stage" @click.stop="handleStageFile(file.path)" title="暂存更改">
+              +
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div v-if="stagedFiles.length === 0 && unstagedFiles.length === 0" class="empty-state">
+        <NEmpty description="没有更改" />
       </div>
     </div>
 
@@ -131,6 +181,7 @@ function handleSelectFile(path: string) {
         v-if="selectedFile && repo"
         :repo-path="repo.path"
         :file-path="selectedFile"
+        :staged="selectedFileStaged"
       />
       <div v-else class="no-diff">
         <span>&#128196;</span>
@@ -148,32 +199,163 @@ function handleSelectFile(path: string) {
 }
 
 .staging-sidebar {
-  width: 40%;
-  min-width: 280px;
+  width: 45%;
+  min-width: 300px;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border-color);
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.staging-toolbar {
-  padding: 8px;
+.commit-area {
+  padding: 12px;
   border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
 }
 
-.file-list-container {
+.commit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.file-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border-color);
+  min-height: 0;
+}
+
+.file-section:last-child {
+  border-bottom: none;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.section-action {
+  border: none;
+  background: transparent;
+  color: var(--accent-blue);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.section-action:hover {
+  background: rgba(88, 166, 255, 0.1);
+}
+
+.file-list {
   flex: 1;
   overflow-y: auto;
 }
 
-.commit-area {
-  padding: 8px;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.file-item:hover {
+  background: var(--bg-hover);
+}
+
+.file-item.selected {
+  background: rgba(88, 166, 255, 0.1);
+}
+
+.file-status {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: monospace;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.file-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'Cascadia Code', 'Fira Code', 'SF Mono', monospace;
+  font-size: 12px;
+}
+
+.file-action {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s;
+  flex-shrink: 0;
+}
+
+.file-item:hover .file-action {
+  opacity: 1;
+}
+
+.file-action.stage {
+  color: var(--accent-green);
+}
+
+.file-action.stage:hover {
+  background: rgba(63, 185, 80, 0.15);
+}
+
+.file-action.unstage {
+  color: var(--accent-orange);
+}
+
+.file-action.unstage:hover {
+  background: rgba(210, 153, 34, 0.15);
+}
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .diff-container {
   flex: 1;
   overflow: auto;
+  min-width: 0;
+  min-height: 0;
 }
 
 .no-diff {

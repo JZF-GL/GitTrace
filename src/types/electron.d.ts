@@ -5,7 +5,7 @@ export interface ElectronAPI {
     logGraph: (repoPath: string, maxCount?: number) => Promise<string>
     diff: (repoPath: string, file?: string) => Promise<string>
     diffIndex: (repoPath: string) => Promise<any>
-    diffStaged: (repoPath: string) => Promise<string>
+    diffStaged: (repoPath: string, file?: string) => Promise<string>
     add: (repoPath: string, files: string[]) => Promise<void>
     addAll: (repoPath: string) => Promise<void>
     reset: (repoPath: string, files: string[]) => Promise<void>

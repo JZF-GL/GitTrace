@@ -125,17 +125,19 @@ onMounted(fetchRemotes)
 
 <style scoped>
 .remote-panel {
-  padding: 16px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
   height: 100%;
+  min-height: 0;
 }
 
 .remote-actions {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .progress {
@@ -145,6 +147,8 @@ onMounted(fetchRemotes)
 
 .remote-list {
   flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .remote-item {

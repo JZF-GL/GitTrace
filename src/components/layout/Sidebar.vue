@@ -12,12 +12,17 @@ const newBranchName = ref('')
 
 const currentRepo = computed(() => repoStore.currentRepo)
 const branches = computed(() => branchesStore.branches)
+const remoteBranches = computed(() => branchesStore.remoteBranches)
 const currentBranch = computed(() => branchesStore.current)
 
-// Debug: log branches when they change
-watch(branches, (val) => {
-  console.log('[Sidebar] branches changed:', val)
-}, { immediate: true })
+function formatRemoteBranch(remote: string): string {
+  // origin/feature/foo -> feature/foo
+  const parts = remote.split('/')
+  if (parts.length > 1) {
+    return parts.slice(1).join('/')
+  }
+  return remote
+}
 
 async function openFolder() {
   const path = await window.electronAPI.dialog.openFolder()
@@ -82,27 +87,45 @@ async function handleDeleteBranch(name: string) {
     <!-- Branches section -->
     <div v-if="currentRepo" class="sidebar-section branches-section">
       <div class="section-header">
-        <span class="section-title">分支 ({{ branches.length }})</span>
+        <span class="section-title">分支</span>
         <NButton text size="tiny" @click="showNewBranch = true">+</NButton>
       </div>
       <div class="branch-list">
-        <div
-          v-for="branch in branches"
-          :key="branch.name"
-          class="branch-item"
-          :class="{ current: branch.current }"
-          @click="handleCheckout(branch.name)"
-        >
-          <span class="branch-icon">&#128204;</span>
-          <span class="branch-name">{{ branch.name }}</span>
-          <button
-            v-if="!branch.current"
-            class="remove-btn"
-            @click.stop="handleDeleteBranch(branch.name)"
-            title="删除分支"
-          >&#10005;</button>
+        <!-- Local branches -->
+        <div v-if="branches.length > 0" class="branch-group">
+          <div class="branch-group-title">本地分支</div>
+          <div
+            v-for="branch in branches"
+            :key="branch.name"
+            class="branch-item"
+            :class="{ current: branch.current }"
+            @click="handleCheckout(branch.name)"
+          >
+            <span class="branch-icon local">&#128204;</span>
+            <span class="branch-name">{{ branch.name }}</span>
+            <button
+              v-if="!branch.current"
+              class="remove-btn"
+              @click.stop="handleDeleteBranch(branch.name)"
+              title="删除分支"
+            >&#10005;</button>
+          </div>
         </div>
-        <div v-if="branches.length === 0" class="no-branches">暂无分支</div>
+
+        <!-- Remote branches -->
+        <div v-if="remoteBranches.length > 0" class="branch-group">
+          <div class="branch-group-title">远程分支</div>
+          <div
+            v-for="remote in remoteBranches"
+            :key="remote"
+            class="branch-item remote"
+          >
+            <span class="branch-icon remote">&#128279;</span>
+            <span class="branch-name">{{ formatRemoteBranch(remote) }}</span>
+          </div>
+        </div>
+
+        <div v-if="branches.length === 0 && remoteBranches.length === 0" class="no-branches">暂无分支</div>
       </div>
     </div>
 
@@ -259,9 +282,18 @@ async function handleDeleteBranch(name: string) {
   color: var(--accent-blue);
 }
 
+.branch-item.remote {
+  color: var(--text-secondary);
+  cursor: default;
+}
+
 .branch-icon {
   font-size: 12px;
   color: var(--accent-purple);
+}
+
+.branch-icon.remote {
+  color: var(--text-muted);
 }
 
 .branch-name {
@@ -269,6 +301,19 @@ async function handleDeleteBranch(name: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.branch-group {
+  margin-bottom: 4px;
+}
+
+.branch-group-title {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 8px 12px 4px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 .no-branches {

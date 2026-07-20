@@ -49,7 +49,7 @@ async function handleRefresh() {
 
     <!-- Tabs -->
     <div class="tab-container">
-      <NTabs v-model:value="activeTab" type="line" animated>
+      <NTabs v-model:value="activeTab" type="line" animated :tab-bar-gutter="20">
         <NTabPane name="history" tab="提交历史">
           <div class="tab-content">
             <CommitHistory />
@@ -87,7 +87,7 @@ async function handleRefresh() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
+  padding: 8px 20px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
 }
@@ -139,25 +139,39 @@ async function handleRefresh() {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 :deep(.n-tabs) {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+
+:deep(.n-tabs-tab .n-tabs-tab__label) {
+  padding: 10px 20px;
+}
+
+:deep(.n-tabs-tab-pad){
+  width: 10px;
 }
 
 :deep(.n-tabs-tab) {
   font-size: 13px;
+  padding: 0;
 }
 
-:deep(.n-tabs-pane) {
+:deep(.n-tab-pane){
+  height: 100%;
+}
+
+:deep(.n-tabs-tab-pane) {
   flex: 1;
-  overflow: hidden;
+  min-height: 0;
 }
 
 .tab-content {
   height: 100%;
-  overflow: auto;
 }
 </style>

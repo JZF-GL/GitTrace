@@ -29,13 +29,24 @@ export const useStagingStore = defineStore('staging', () => {
   async function fetchStatus(repoPath: string) {
     loading.value = true
     try {
+      console.log('[StagingStore] fetchStatus called for:', repoPath)
       const status = await window.electronAPI.git.status(repoPath)
-      files.value = status.files.map((f: any) => ({
-        path: f.path,
-        index: f.index,
-        workingDir: f.working_dir,
-        status: getStatusLabel(f),
-      }))
+      console.log('[StagingStore] status received:', status)
+      console.log('[StagingStore] status.files:', status.files)
+      if (status && status.files) {
+        files.value = status.files.map((f: any) => ({
+          path: f.path,
+          index: f.index,
+          workingDir: f.working_dir,
+          status: getStatusLabel(f),
+        }))
+      } else {
+        files.value = []
+      }
+      console.log('[StagingStore] files set to:', files.value)
+    } catch (e) {
+      console.error('[StagingStore] fetchStatus error:', e)
+      files.value = []
     } finally {
       loading.value = false
     }
@@ -51,30 +62,47 @@ export const useStagingStore = defineStore('staging', () => {
   }
 
   async function stageFiles(repoPath: string, paths: string[]) {
-    await window.electronAPI.git.add(repoPath, paths)
-    await fetchStatus(repoPath)
-  }
-
-  async function stageAll(repoPath: string) {
-    await window.electronAPI.git.addAll(repoPath)
-    await fetchStatus(repoPath)
-  }
-
-  async function unstageFiles(repoPath: string, paths: string[]) {
-    await window.electronAPI.git.reset(repoPath, paths)
-    await fetchStatus(repoPath)
-  }
-
-  function toggleSelect(path: string) {
-    if (selectedFiles.value.has(path)) {
-      selectedFiles.value.delete(path)
-    } else {
-      selectedFiles.value.add(path)
+    try {
+      console.log('[StagingStore] stageFiles:', paths)
+      await window.electronAPI.git.add(repoPath, paths)
+      await fetchStatus(repoPath)
+    } catch (e) {
+      console.error('[StagingStore] stageFiles error:', e)
     }
   }
 
+  async function stageAll(repoPath: string) {
+    try {
+      console.log('[StagingStore] stageAll')
+      await window.electronAPI.git.addAll(repoPath)
+      await fetchStatus(repoPath)
+    } catch (e) {
+      console.error('[StagingStore] stageAll error:', e)
+    }
+  }
+
+  async function unstageFiles(repoPath: string, paths: string[]) {
+    try {
+      console.log('[StagingStore] unstageFiles:', paths)
+      await window.electronAPI.git.reset(repoPath, paths)
+      await fetchStatus(repoPath)
+    } catch (e) {
+      console.error('[StagingStore] unstageFiles error:', e)
+    }
+  }
+
+  function toggleSelect(path: string) {
+    const newSet = new Set(selectedFiles.value)
+    if (newSet.has(path)) {
+      newSet.delete(path)
+    } else {
+      newSet.add(path)
+    }
+    selectedFiles.value = newSet
+  }
+
   function clearSelection() {
-    selectedFiles.value.clear()
+    selectedFiles.value = new Set()
   }
 
   function clear() {

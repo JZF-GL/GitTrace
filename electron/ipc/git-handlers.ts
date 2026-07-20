@@ -3,7 +3,10 @@ import * as gitService from '../services/git-service'
 
 export function registerGitHandlers() {
   ipcMain.handle('git:status', async (_event, repoPath: string) => {
-    return gitService.getStatus(repoPath)
+    console.log('[IPC] git:status called for:', repoPath)
+    const result = await gitService.getStatus(repoPath)
+    console.log('[IPC] git:status result files count:', result.files?.length)
+    return result
   })
 
   ipcMain.handle('git:log', async (_event, repoPath: string, options?: any) => {
@@ -22,8 +25,8 @@ export function registerGitHandlers() {
     return gitService.getDiffIndex(repoPath)
   })
 
-  ipcMain.handle('git:diff-staged', async (_event, repoPath: string) => {
-    return gitService.getDiffStaged(repoPath)
+  ipcMain.handle('git:diff-staged', async (_event, repoPath: string, file?: string) => {
+    return gitService.getDiffStaged(repoPath, file)
   })
 
   ipcMain.handle('git:add', async (_event, repoPath: string, files: string[]) => {

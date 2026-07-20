@@ -69,6 +69,7 @@ function selectCommit(commit: GraphCommit) {
   display: flex;
   height: 100%;
   overflow: hidden;
+  min-height: 0;
 }
 
 .history-sidebar {
@@ -78,20 +79,19 @@ function selectCommit(commit: GraphCommit) {
   flex-direction: column;
   border-right: 1px solid var(--border-color);
   overflow: hidden;
-}
-
-.history-sidebar .commit-list {
-  overflow-x: auto;
+  flex-shrink: 0;
 }
 
 .search-bar {
-  padding: 8px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .commit-list {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .loading {
@@ -104,7 +104,9 @@ function selectCommit(commit: GraphCommit) {
 .history-detail {
   flex: 1;
   overflow: auto;
-  padding: 16px;
+  padding: 16px 20px;
+  min-width: 0;
+  min-height: 0;
 }
 
 .no-selection {

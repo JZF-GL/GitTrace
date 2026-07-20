@@ -9,17 +9,52 @@ function getGit(repoPath: string): SimpleGit {
   return gitInstances.get(repoPath)!
 }
 
-export async function getStatus(repoPath: string): Promise<StatusResult> {
-  return getGit(repoPath).status()
+export async function getStatus(repoPath: string): Promise<any> {
+  const status = await getGit(repoPath).status()
+  return {
+    not_added: status.not_added,
+    created: status.created,
+    deleted: status.deleted,
+    modified: status.modified,
+    renamed: status.renamed,
+    files: status.files.map(f => ({
+      path: f.path,
+      index: f.index,
+      working_dir: f.working_dir,
+    })),
+    staged: status.staged,
+    ahead: status.ahead,
+    behind: status.behind,
+    current: status.current,
+    tracking: status.tracking,
+    conflicted: status.conflicted,
+  }
 }
 
-export async function getLog(repoPath: string, options?: { maxCount?: number; from?: string; to?: string }): Promise<LogResult> {
+export async function getLog(repoPath: string, options?: { maxCount?: number; from?: string; to?: string }): Promise<any> {
   const git = getGit(repoPath)
   const logOptions: any = {}
   if (options?.maxCount) logOptions.maxCount = options.maxCount
   if (options?.from) logOptions.from = options.from
   if (options?.to) logOptions.to = options.to
-  return git.log(logOptions)
+  const log = await git.log(logOptions)
+  return {
+    all: log.all.map(l => ({
+      hash: l.hash,
+      date: l.date,
+      message: l.message,
+      author_name: l.author_name,
+      author_email: l.author_email,
+      refs: l.refs,
+    })),
+    latest: log.latest ? {
+      hash: log.latest.hash,
+      date: log.latest.date,
+      message: log.latest.message,
+      author_name: log.latest.author_name,
+    } : null,
+    total: log.total,
+  }
 }
 
 export async function getLogGraph(repoPath: string, maxCount: number = 200): Promise<string> {
@@ -49,8 +84,11 @@ export async function getDiffIndex(repoPath: string): Promise<DiffResult> {
   return git.diffStatus()
 }
 
-export async function getDiffStaged(repoPath: string): Promise<string> {
+export async function getDiffStaged(repoPath: string, file?: string): Promise<string> {
   const git = getGit(repoPath)
+  if (file) {
+    return git.diff(['--cached', file])
+  }
   return git.diff(['--cached'])
 }
 
@@ -71,7 +109,16 @@ export async function resetFiles(repoPath: string, files: string[]): Promise<voi
 
 export async function commit(repoPath: string, message: string): Promise<any> {
   const git = getGit(repoPath)
-  return git.commit(message)
+  const result = await git.commit(message)
+  return {
+    branch: result.branch,
+    commit: result.commit,
+    summary: {
+      changes: result.summary.changes,
+      insertions: result.summary.insertions,
+      deletions: result.summary.deletions,
+    },
+  }
 }
 
 export async function push(repoPath: string, remote?: string, branch?: string): Promise<void> {
@@ -144,7 +191,14 @@ export async function rebase(repoPath: string, branch: string): Promise<any> {
 
 export async function stashList(repoPath: string): Promise<any> {
   const git = getGit(repoPath)
-  return git.stashList()
+  const list = await git.stashList()
+  return {
+    all: list.all.map(s => ({
+      hash: s.hash,
+      date: s.date,
+      message: s.message,
+    })),
+  }
 }
 
 export async function stashPush(repoPath: string, message?: string): Promise<any> {
@@ -164,7 +218,11 @@ export async function stashDrop(repoPath: string, stashRef: string): Promise<any
 
 export async function tagList(repoPath: string): Promise<any> {
   const git = getGit(repoPath)
-  return git.tags()
+  const tags = await git.tags()
+  return {
+    all: tags.all,
+    latest: tags.latest,
+  }
 }
 
 export async function tagCreate(repoPath: string, tagName: string, ref?: string): Promise<any> {
@@ -179,7 +237,14 @@ export async function tagDelete(repoPath: string, tagName: string): Promise<any>
 
 export async function remoteList(repoPath: string): Promise<any> {
   const git = getGit(repoPath)
-  return git.getRemotes(true)
+  const remotes = await git.getRemotes(true)
+  return remotes.map((r: any) => ({
+    name: r.name,
+    refs: {
+      fetch: r.refs.fetch,
+      push: r.refs.push,
+    },
+  }))
 }
 
 export async function remoteAdd(repoPath: string, name: string, url: string): Promise<void> {
@@ -194,5 +259,16 @@ export async function remoteRemove(repoPath: string, name: string): Promise<void
 
 export async function getConfig(repoPath: string): Promise<any> {
   const git = getGit(repoPath)
-  return git.listConfig()
+  const config = await git.listConfig()
+  const result: Record<string, Record<string, string>> = {}
+  for (const [key, value] of Object.entries(config.all)) {
+    const parts = key.split('.')
+    if (parts.length >= 2) {
+      const section = parts[0]
+      const prop = parts.slice(1).join('.')
+      if (!result[section]) result[section] = {}
+      result[section][prop] = String(value)
+    }
+  }
+  return result
 }

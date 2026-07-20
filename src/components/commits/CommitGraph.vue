@@ -163,7 +163,7 @@ function formatDate(dateStr: string): string {
 
 .commit-info {
   flex: 1;
-  padding: 0 12px 0 8px;
+  padding: 0 12px 0 28px;
   min-width: 0;
   overflow: hidden;
   display: flex;
