@@ -3,9 +3,13 @@ import { computed, ref, watch } from 'vue'
 import { NButton, NInput, NModal, NForm, NFormItem, NSelect, useMessage } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useBranchesStore } from '../../stores/branches'
+import { useStagingStore } from '../../stores/staging'
+import { useCommitsStore } from '../../stores/commits'
 
 const repoStore = useRepositoryStore()
 const branchesStore = useBranchesStore()
+const stagingStore = useStagingStore()
+const commitsStore = useCommitsStore()
 const message = useMessage()
 
 const showNewBranch = ref(false)
@@ -54,6 +58,11 @@ async function handleCheckout(branch: string) {
   const result = await branchesStore.checkout(currentRepo.value.path, branch)
   if (result?.success) {
     message.success(result.message)
+    // 刷新工作区和提交历史
+    await Promise.all([
+      stagingStore.fetchStatus(currentRepo.value.path),
+      commitsStore.fetchGraph(currentRepo.value.path),
+    ])
   } else {
     message.error('切换失败: ' + (result?.message || '未知错误'))
   }
