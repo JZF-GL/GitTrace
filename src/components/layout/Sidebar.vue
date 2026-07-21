@@ -83,12 +83,6 @@ async function handleDeleteBranch(name: string) {
     message.error('删除失败: ' + (result?.message || '未知错误'))
   }
 }
-
-async function handleRefreshBranches() {
-  if (!currentRepo.value) return
-  await branchesStore.fetchBranches(currentRepo.value.path)
-  message.success('分支已刷新')
-}
 </script>
 
 <template>
