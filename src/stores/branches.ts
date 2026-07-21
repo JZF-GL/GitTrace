@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { useCommitsStore } from './commits'
+import { useStagingStore } from './staging'
 
 export interface Branch {
   name: string
@@ -24,6 +26,16 @@ export const useBranchesStore = defineStore('branches', () => {
     }
   }
 
+  async function refreshAll(repoPath: string) {
+    const commitsStore = useCommitsStore()
+    const stagingStore = useStagingStore()
+    await Promise.all([
+      fetchBranches(repoPath),
+      commitsStore.fetchGraph(repoPath),
+      stagingStore.fetchStatus(repoPath),
+    ])
+  }
+
   async function createBranch(repoPath: string, name: string) {
     const result = await window.electronAPI.git.branchCreate(repoPath, name)
     await fetchBranches(repoPath)
@@ -38,7 +50,9 @@ export const useBranchesStore = defineStore('branches', () => {
 
   async function checkout(repoPath: string, branch: string) {
     const result = await window.electronAPI.git.checkout(repoPath, branch)
-    await fetchBranches(repoPath)
+    if (result?.success) {
+      await refreshAll(repoPath)
+    }
     return result
   }
 
@@ -48,5 +62,5 @@ export const useBranchesStore = defineStore('branches', () => {
     current.value = ''
   }
 
-  return { branches, remoteBranches, current, loading, fetchBranches, createBranch, deleteBranch, checkout, clear }
+  return { branches, remoteBranches, current, loading, fetchBranches, refreshAll, createBranch, deleteBranch, checkout, clear }
 })

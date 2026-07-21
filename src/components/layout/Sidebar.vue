@@ -68,6 +68,12 @@ async function handleCheckout(branch: string) {
   }
 }
 
+async function handleRefreshBranches() {
+  if (!currentRepo.value) return
+  await branchesStore.refreshAll(currentRepo.value.path)
+  message.success('分支已刷新')
+}
+
 async function handleDeleteBranch(name: string) {
   if (!currentRepo.value) return
   const result = await branchesStore.deleteBranch(currentRepo.value.path, name)
@@ -76,12 +82,6 @@ async function handleDeleteBranch(name: string) {
   } else {
     message.error('删除失败: ' + (result?.message || '未知错误'))
   }
-}
-
-async function handleRefreshBranches() {
-  if (!currentRepo.value) return
-  await branchesStore.fetchBranches(currentRepo.value.path)
-  message.success('分支已刷新')
 }
 </script>
 
@@ -215,6 +215,12 @@ async function handleRefreshBranches() {
   justify-content: space-between;
   padding: 8px 12px;
   background: var(--bg-secondary);
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .section-title {
