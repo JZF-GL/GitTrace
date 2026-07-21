@@ -167,19 +167,21 @@ export async function branchList(repoPath: string): Promise<any> {
     try {
       // Use raw git command for more reliable remote branch listing
       const raw = await git.raw(['branch', '-r'])
-      console.log('[GitService] branch -r raw:', raw)
       if (raw) {
         remoteBranches = raw.split('\n')
           .map(l => l.trim())
-          .filter(l => l && !l.includes('HEAD') && l.includes('/'))
-          .map(l => l.replace(/^origin\//, ''))
+          .filter(l => l && !l.includes('HEAD'))
+          .map(l => {
+            // Remove remote prefix like "origin/"
+            const parts = l.split('/')
+            return parts.length > 1 ? parts.slice(1).join('/') : l
+          })
           .filter(l => l)
       }
     } catch (e) {
       console.log('[GitService] branch -r error:', e)
     }
 
-    console.log('[GitService] final remoteBranches:', remoteBranches)
     return { local: localBranches, current, remote: remoteBranches }
   } catch (e) {
     console.error('[GitService] branchList error:', e)
