@@ -164,13 +164,6 @@ export async function branchList(repoPath: string): Promise<any> {
   try {
     const git = getGit(repoPath)
 
-    // Fetch first to get latest remote state
-    try {
-      await git.fetch()
-    } catch {
-      // Ignore fetch errors (no remote configured)
-    }
-
     const branchSummary = await git.branchLocal()
     const current = branchSummary.current
     const localBranches = Object.keys(branchSummary.branches).map(name => ({
