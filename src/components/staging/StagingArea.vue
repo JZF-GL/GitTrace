@@ -5,6 +5,7 @@ import { useRepositoryStore } from '../../stores/repository'
 import { useStagingStore, type FileChange } from '../../stores/staging'
 import { useCommitsStore } from '../../stores/commits'
 import DiffViewer from './DiffViewer.vue'
+import ConflictResolver from '../conflict/ConflictResolver.vue'
 
 const repoStore = useRepositoryStore()
 const stagingStore = useStagingStore()
@@ -83,6 +84,8 @@ const commitTypeOptions = [
 
 const stagedFiles = computed(() => stagingStore.stagedFiles)
 const unstagedFiles = computed(() => [...stagingStore.unstagedFiles, ...stagingStore.untrackedFiles])
+const conflictFiles = ref<string[]>([])
+const showConflictResolver = ref(false)
 
 async function handleStageFile(path: string) {
   if (!repo.value) return
@@ -155,6 +158,11 @@ async function handlePull() {
         stagingStore.fetchStatus(repo.value.path),
         commitsStore.fetchGraph(repo.value.path),
       ])
+    } else if (result.conflict) {
+      message.warning('拉取有冲突，请解决')
+      const conflictResult = await window.electronAPI.git.conflictedFiles(repo.value.path)
+      conflictFiles.value = conflictResult.files || []
+      showConflictResolver.value = true
     } else {
       message.error('拉取失败: ' + result.message)
     }
@@ -166,6 +174,12 @@ async function handlePull() {
 function handleSelectFile(path: string, staged: boolean) {
   selectedFile.value = path
   selectedFileStaged.value = staged
+}
+
+function onConflictResolved() {
+  showConflictResolver.value = false
+  conflictFiles.value = []
+  message.success('所有冲突已解决')
 }
 
 function getStatusSymbol(file: FileChange): string {
@@ -276,10 +290,15 @@ function getStatusClass(file: FileChange): string {
       </div>
     </div>
 
-    <!-- Diff viewer -->
+    <!-- Diff viewer or Conflict resolver -->
     <div class="diff-container">
+      <ConflictResolver
+        v-if="showConflictResolver && conflictFiles.length > 0"
+        :files="conflictFiles"
+        @resolved="onConflictResolved"
+      />
       <DiffViewer
-        v-if="selectedFile && repo"
+        v-else-if="selectedFile && repo"
         :repo-path="repo.path"
         :file-path="selectedFile"
         :staged="selectedFileStaged"
