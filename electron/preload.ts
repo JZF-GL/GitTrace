@@ -36,6 +36,19 @@ const gitAPI = {
   remoteAdd: (repoPath: string, name: string, url: string) => ipcRenderer.invoke('git:remote-add', repoPath, name, url),
   remoteRemove: (repoPath: string, name: string) => ipcRenderer.invoke('git:remote-remove', repoPath, name),
   config: (repoPath: string) => ipcRenderer.invoke('git:config', repoPath),
+  // P0
+  resetCommit: (repoPath: string, commitHash: string, mode: string) => ipcRenderer.invoke('git:reset-commit', repoPath, commitHash, mode),
+  amendCommit: (repoPath: string, message: string) => ipcRenderer.invoke('git:amend-commit', repoPath, message),
+  cherryPick: (repoPath: string, commitHash: string) => ipcRenderer.invoke('git:cherry-pick', repoPath, commitHash),
+  mergeBranch: (repoPath: string, branch: string) => ipcRenderer.invoke('git:merge-branch', repoPath, branch),
+  rebaseAbort: (repoPath: string) => ipcRenderer.invoke('git:rebase-abort', repoPath),
+  conflictedFiles: (repoPath: string) => ipcRenderer.invoke('git:conflicted-files', repoPath),
+  conflictFile: (repoPath: string, filePath: string) => ipcRenderer.invoke('git:conflict-file', repoPath, filePath),
+  resolveConflict: (repoPath: string, filePath: string, content: string) => ipcRenderer.invoke('git:resolve-conflict', repoPath, filePath, content),
+  // P1
+  commitFiles: (repoPath: string, commitHash: string) => ipcRenderer.invoke('git:commit-files', repoPath, commitHash),
+  commitDiff: (repoPath: string, commitHash: string, filePath?: string) => ipcRenderer.invoke('git:commit-diff', repoPath, commitHash, filePath),
+  searchCommits: (repoPath: string, query: string, options?: any) => ipcRenderer.invoke('git:search-commits', repoPath, query, options),
   onProgress: (callback: (data: any) => void) => {
     ipcRenderer.on('git:progress', (_event, data) => callback(data))
   },

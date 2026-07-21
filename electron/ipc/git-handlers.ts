@@ -80,10 +80,6 @@ export function registerGitHandlers() {
     return gitService.merge(repoPath, branch)
   })
 
-  ipcMain.handle('git:rebase', async (_event, repoPath: string, branch: string) => {
-    return gitService.rebase(repoPath, branch)
-  })
-
   ipcMain.handle('git:stash-list', async (_event, repoPath: string) => {
     return gitService.stashList(repoPath)
   })
@@ -126,5 +122,65 @@ export function registerGitHandlers() {
 
   ipcMain.handle('git:config', async (_event, repoPath: string) => {
     return gitService.getConfig(repoPath)
+  })
+
+  // P0: 撤销提交
+  ipcMain.handle('git:reset-commit', async (_event, repoPath: string, commitHash: string, mode: 'soft' | 'mixed' | 'hard') => {
+    return gitService.resetCommit(repoPath, commitHash, mode)
+  })
+
+  // P0: Amend 提交
+  ipcMain.handle('git:amend-commit', async (_event, repoPath: string, message: string) => {
+    return gitService.amendCommit(repoPath, message)
+  })
+
+  // P0: Cherry-pick
+  ipcMain.handle('git:cherry-pick', async (_event, repoPath: string, commitHash: string) => {
+    return gitService.cherryPick(repoPath, commitHash)
+  })
+
+  // P0: Rebase
+  ipcMain.handle('git:rebase', async (_event, repoPath: string, branch: string) => {
+    return gitService.rebase(repoPath, branch)
+  })
+
+  // P0: Rebase abort
+  ipcMain.handle('git:rebase-abort', async (_event, repoPath: string) => {
+    return gitService.rebaseAbort(repoPath)
+  })
+
+  // P0: Merge
+  ipcMain.handle('git:merge-branch', async (_event, repoPath: string, branch: string) => {
+    return gitService.mergeBranch(repoPath, branch)
+  })
+
+  // P0: 冲突文件列表
+  ipcMain.handle('git:conflicted-files', async (_event, repoPath: string) => {
+    return gitService.getConflictedFiles(repoPath)
+  })
+
+  // P0: 冲突文件内容
+  ipcMain.handle('git:conflict-file', async (_event, repoPath: string, filePath: string) => {
+    return gitService.getConflictFile(repoPath, filePath)
+  })
+
+  // P0: 解决冲突
+  ipcMain.handle('git:resolve-conflict', async (_event, repoPath: string, filePath: string, content: string) => {
+    return gitService.resolveConflict(repoPath, filePath, content)
+  })
+
+  // P1: 提交修改的文件列表
+  ipcMain.handle('git:commit-files', async (_event, repoPath: string, commitHash: string) => {
+    return gitService.getCommitFiles(repoPath, commitHash)
+  })
+
+  // P1: 提交的 diff
+  ipcMain.handle('git:commit-diff', async (_event, repoPath: string, commitHash: string, filePath?: string) => {
+    return gitService.getCommitDiff(repoPath, commitHash, filePath)
+  })
+
+  // P1: 搜索提交
+  ipcMain.handle('git:search-commits', async (_event, repoPath: string, query: string, options?: any) => {
+    return gitService.searchCommits(repoPath, query, options)
   })
 }

@@ -3,9 +3,13 @@ import { computed, ref, watch } from 'vue'
 import { NButton, NInput, NModal, NForm, NFormItem, NSelect, useMessage } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useBranchesStore } from '../../stores/branches'
+import { useStagingStore } from '../../stores/staging'
+import { useCommitsStore } from '../../stores/commits'
 
 const repoStore = useRepositoryStore()
 const branchesStore = useBranchesStore()
+const stagingStore = useStagingStore()
+const commitsStore = useCommitsStore()
 const message = useMessage()
 
 const showNewBranch = ref(false)
@@ -54,6 +58,11 @@ async function handleCheckout(branch: string) {
   const result = await branchesStore.checkout(currentRepo.value.path, branch)
   if (result?.success) {
     message.success(result.message)
+    // 刷新工作区和提交历史
+    await Promise.all([
+      stagingStore.fetchStatus(currentRepo.value.path),
+      commitsStore.fetchGraph(currentRepo.value.path),
+    ])
   } else {
     message.error('切换失败: ' + (result?.message || '未知错误'))
   }
@@ -74,6 +83,12 @@ async function handleDeleteBranch(name: string) {
     message.error('删除失败: ' + (result?.message || '未知错误'))
   }
 }
+
+async function handleRefreshBranches() {
+  if (!currentRepo.value) return
+  await branchesStore.fetchBranches(currentRepo.value.path)
+  message.success('分支已刷新')
+}
 </script>
 
 <template>
@@ -82,7 +97,7 @@ async function handleDeleteBranch(name: string) {
     <div class="sidebar-section">
       <div class="section-header">
         <span class="section-title">仓库</span>
-        <NButton text size="tiny" @click="openFolder">+</NButton>
+        <NButton text size="small" @click="openFolder">+</NButton>
       </div>
       <div class="repo-list">
         <div
@@ -111,8 +126,8 @@ async function handleDeleteBranch(name: string) {
       <div class="section-header">
         <span class="section-title">分支</span>
         <div class="section-actions">
-          <NButton text size="tiny" @click="handleRefreshBranches" title="刷新分支">&#8635;</NButton>
-          <NButton text size="tiny" @click="showNewBranch = true">+</NButton>
+          <button class="action-icon" @click="handleRefreshBranches" title="刷新分支">&#8635;</button>
+          <NButton text size="small" @click="showNewBranch = true">+</NButton>
         </div>
       </div>
       <div class="branch-list">
@@ -128,6 +143,8 @@ async function handleDeleteBranch(name: string) {
           >
             <span class="branch-icon local">&#128204;</span>
             <span class="branch-name">{{ branch.name }}</span>
+            <span v-if="branch.current && stagingStore.ahead > 0" class="branch-badge ahead">&#8593;{{ stagingStore.ahead }}</span>
+            <span v-if="branch.current && stagingStore.behind > 0" class="branch-badge behind">&#8595;{{ stagingStore.behind }}</span>
             <button
               v-if="!branch.current"
               class="remove-btn"
@@ -218,6 +235,28 @@ async function handleDeleteBranch(name: string) {
   text-transform: uppercase;
   color: var(--text-secondary);
   letter-spacing: 0.5px;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.action-icon {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.action-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .repo-list, .branch-list {
@@ -316,6 +355,23 @@ async function handleDeleteBranch(name: string) {
 .branch-item.remote {
   color: var(--text-secondary);
   cursor: default;
+}
+
+.branch-badge {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.branch-badge.ahead {
+  background: rgba(63, 185, 80, 0.2);
+  color: var(--accent-green);
+}
+
+.branch-badge.behind {
+  background: rgba(248, 81, 73, 0.2);
+  color: var(--accent-red);
 }
 
 .branch-icon {
