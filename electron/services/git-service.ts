@@ -178,21 +178,33 @@ export async function branchList(repoPath: string): Promise<any> {
 }
 
 export async function branchCreate(repoPath: string, branchName: string, startPoint?: string): Promise<any> {
-  const git = getGit(repoPath)
-  if (startPoint) {
-    return git.checkoutLocalBranch(branchName)
+  try {
+    const git = getGit(repoPath)
+    await git.checkoutLocalBranch(branchName)
+    return { success: true, message: `分支 ${branchName} 创建成功` }
+  } catch (e: any) {
+    return { success: false, message: e.message || String(e) }
   }
-  return git.checkoutLocalBranch(branchName)
 }
 
 export async function branchDelete(repoPath: string, branchName: string, force?: boolean): Promise<any> {
-  const git = getGit(repoPath)
-  return git.deleteLocalBranch(branchName, force)
+  try {
+    const git = getGit(repoPath)
+    await git.deleteLocalBranch(branchName, force)
+    return { success: true, message: `分支 ${branchName} 已删除` }
+  } catch (e: any) {
+    return { success: false, message: e.message || String(e) }
+  }
 }
 
-export async function checkout(repoPath: string, branch: string): Promise<void> {
-  const git = getGit(repoPath)
-  await git.checkout(branch)
+export async function checkout(repoPath: string, branch: string): Promise<any> {
+  try {
+    const git = getGit(repoPath)
+    await git.checkout(branch)
+    return { success: true, message: `已切换到 ${branch}` }
+  } catch (e: any) {
+    return { success: false, message: e.message || String(e) }
+  }
 }
 
 export async function merge(repoPath: string, branch: string): Promise<any> {

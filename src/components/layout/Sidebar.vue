@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { NButton, NInput, NModal, NForm, NFormItem, NSelect } from 'naive-ui'
+import { NButton, NInput, NModal, NForm, NFormItem, NSelect, useMessage } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useBranchesStore } from '../../stores/branches'
 
 const repoStore = useRepositoryStore()
 const branchesStore = useBranchesStore()
+const message = useMessage()
 
 const showNewBranch = ref(false)
 const newBranchName = ref('')
@@ -38,19 +39,34 @@ async function selectRepo(repo: any) {
 
 async function handleCreateBranch() {
   if (!currentRepo.value || !newBranchName.value) return
-  await branchesStore.createBranch(currentRepo.value.path, newBranchName.value)
+  const result = await branchesStore.createBranch(currentRepo.value.path, newBranchName.value)
+  if (result?.success) {
+    message.success(result.message)
+  } else {
+    message.error('创建失败: ' + (result?.message || '未知错误'))
+  }
   newBranchName.value = ''
   showNewBranch.value = false
 }
 
 async function handleCheckout(branch: string) {
   if (!currentRepo.value) return
-  await branchesStore.checkout(currentRepo.value.path, branch)
+  const result = await branchesStore.checkout(currentRepo.value.path, branch)
+  if (result?.success) {
+    message.success(result.message)
+  } else {
+    message.error('切换失败: ' + (result?.message || '未知错误'))
+  }
 }
 
 async function handleDeleteBranch(name: string) {
   if (!currentRepo.value) return
-  await branchesStore.deleteBranch(currentRepo.value.path, name)
+  const result = await branchesStore.deleteBranch(currentRepo.value.path, name)
+  if (result?.success) {
+    message.success(result.message)
+  } else {
+    message.error('删除失败: ' + (result?.message || '未知错误'))
+  }
 }
 </script>
 

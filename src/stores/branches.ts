@@ -29,18 +29,21 @@ export const useBranchesStore = defineStore('branches', () => {
   }
 
   async function createBranch(repoPath: string, name: string) {
-    await window.electronAPI.git.branchCreate(repoPath, name)
+    const result = await window.electronAPI.git.branchCreate(repoPath, name)
     await fetchBranches(repoPath)
+    return result
   }
 
   async function deleteBranch(repoPath: string, name: string) {
-    await window.electronAPI.git.branchDelete(repoPath, name)
+    const result = await window.electronAPI.git.branchDelete(repoPath, name)
     await fetchBranches(repoPath)
+    return result
   }
 
   async function checkout(repoPath: string, branch: string) {
-    await window.electronAPI.git.checkout(repoPath, branch)
+    const result = await window.electronAPI.git.checkout(repoPath, branch)
     await fetchBranches(repoPath)
+    return result
   }
 
   function clear() {
