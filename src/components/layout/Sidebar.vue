@@ -59,6 +59,12 @@ async function handleCheckout(branch: string) {
   }
 }
 
+async function handleRefreshBranches() {
+  if (!currentRepo.value) return
+  await branchesStore.refreshAll(currentRepo.value.path)
+  message.success('分支已刷新')
+}
+
 async function handleDeleteBranch(name: string) {
   if (!currentRepo.value) return
   const result = await branchesStore.deleteBranch(currentRepo.value.path, name)
@@ -104,7 +110,10 @@ async function handleDeleteBranch(name: string) {
     <div v-if="currentRepo" class="sidebar-section branches-section">
       <div class="section-header">
         <span class="section-title">分支</span>
-        <NButton text size="tiny" @click="showNewBranch = true">+</NButton>
+        <div class="section-actions">
+          <NButton text size="tiny" @click="handleRefreshBranches" title="刷新分支">&#8635;</NButton>
+          <NButton text size="tiny" @click="showNewBranch = true">+</NButton>
+        </div>
       </div>
       <div class="branch-list">
         <!-- Local branches -->
@@ -195,6 +204,12 @@ async function handleDeleteBranch(name: string) {
   justify-content: space-between;
   padding: 8px 12px;
   background: var(--bg-secondary);
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .section-title {
