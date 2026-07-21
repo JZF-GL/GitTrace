@@ -149,7 +149,7 @@ async function handleDeleteBranch(name: string) {
     <NModal v-model:show="showNewBranch" title="创建新分支">
       <div class="modal-content">
         <NInput
-          v-model:value="newBranchName.value"
+          v-model:value="newBranchName"
           placeholder="分支名称"
           @keyup.enter="handleCreateBranch"
         />
@@ -157,7 +157,7 @@ async function handleDeleteBranch(name: string) {
           type="primary"
           style="margin-top: 12px; width: 100%"
           @click="handleCreateBranch"
-          :disabled="!newBranchName.value"
+          :disabled="!newBranchName"
         >
           创建
         </NButton>
