@@ -167,6 +167,7 @@ async function handleAction(key: string) {
 .history-sidebar {
   width: 50%;
   min-width: 350px;
+  max-width: 500px;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border-color);
