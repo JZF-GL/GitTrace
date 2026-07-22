@@ -101,7 +101,10 @@ export function registerGitHandlers() {
   })
 
   ipcMain.handle('git:stash-show-diff', async (_event, repoPath: string, stashRef: string, filePath?: string) => {
-    return gitService.stashShowDiff(repoPath, stashRef, filePath)
+    console.log('[IPC] stash-show-diff:', { stashRef, filePath })
+    const result = await gitService.stashShowDiff(repoPath, stashRef, filePath)
+    console.log('[IPC] stash-show-diff result length:', result?.length)
+    return result
   })
 
   ipcMain.handle('git:tag-list', async (_event, repoPath: string) => {

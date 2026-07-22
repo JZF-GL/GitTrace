@@ -33,6 +33,7 @@ async function fetchStashList() {
     stashList.value = result.all || []
     if (stashList.value.length > 0 && selectedIndex.value === null) {
       selectedIndex.value = 0
+      await fetchStashFiles(0)
     } else if (stashList.value.length === 0) {
       selectedIndex.value = null
     }
@@ -217,7 +218,7 @@ onMounted(fetchStashList)
 .stash-actions { flex-shrink: 0; padding: 12px 16px; border-bottom: 1px solid var(--border-color); }
 .stash-content { flex: 1; display: flex; overflow: hidden; min-height: 0; }
 .stash-sidebar { width: 350px; min-width: 280px; max-width: 500px; border-right: 1px solid var(--border-color); display: flex; flex-direction: column; overflow: hidden; }
-.sidebar-section { display: flex; flex-direction: column; overflow: hidden; }
+.sidebar-section { display: flex; flex-direction: column; overflow: hidden; flex: 1; min-height: 0; }
 .file-section { border-top: 1px solid var(--border-color); flex: 1; min-height: 0; }
 .section-header { padding: 8px 12px; font-size: 11px; font-weight: 600; color: var(--text-secondary); background: var(--bg-tertiary); flex-shrink: 0; }
 .stash-list { overflow-y: auto; flex: 1; }

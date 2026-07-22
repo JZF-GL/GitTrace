@@ -296,16 +296,21 @@ export async function stashShowFiles(repoPath: string, stashRef: string): Promis
 export async function stashShowDiff(repoPath: string, stashRef: string, filePath?: string): Promise<string> {
   try {
     const git = getGit(repoPath)
+    console.log('[stashShowDiff] stashRef:', stashRef, 'filePath:', filePath)
     const fullDiff = await git.raw(['stash', 'show', '-p', '-u', stashRef])
+    console.log('[stashShowDiff] fullDiff length:', fullDiff.length)
     if (!filePath) return fullDiff
     // Parse full diff to extract specific file's diff
     const sections = fullDiff.split(/^diff --git /m).filter(s => s.trim())
+    console.log('[stashShowDiff] sections:', sections.length)
     for (const section of sections) {
       const header = section.split('\n')[0]
       if (header.includes('a/' + filePath) || header.includes('b/' + filePath)) {
+        console.log('[stashShowDiff] matched:', header)
         return 'diff --git ' + section
       }
     }
+    console.log('[stashShowDiff] no match for:', filePath)
     return ''
   } catch (e: any) {
     return e.message || String(e)
