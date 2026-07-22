@@ -461,6 +461,9 @@ export async function getConflictedFiles(repoPath: string): Promise<any> {
 export async function getConflictFile(repoPath: string, filePath: string): Promise<any> {
   try {
     const git = getGit(repoPath)
+    const fs = require('fs')
+    const path = require('path')
+
     // 当前版本 (HEAD)
     let ours = ''
     try {
@@ -473,8 +476,12 @@ export async function getConflictFile(repoPath: string, filePath: string): Promi
       theirs = await git.raw(['show', `MERGE_HEAD:${filePath}`])
     } catch { theirs = '' }
 
-    // 工作区版本 (包含冲突标记)
-    const working = await git.raw(['show', `:${filePath}`])
+    // 工作区版本 (直接从磁盘读取，包含冲突标记)
+    let working = ''
+    try {
+      const fullPath = path.join(repoPath, filePath)
+      working = fs.readFileSync(fullPath, 'utf-8')
+    } catch { working = '' }
 
     return { ours, theirs, working }
   } catch (e: any) {

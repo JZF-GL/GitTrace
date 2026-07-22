@@ -156,14 +156,13 @@ onMounted(fetchStashList)
           <div class="stash-list" v-if="!loading">
             <NEmpty v-if="stashList.length === 0" description="暂无 Stash" :style="{ padding: '20px 0' }" />
             <div v-for="(stash, index) in stashList" :key="stash.hash" class="stash-item" :class="{ selected: selectedIndex === index }" @click="selectStash(index)">
-              <div class="stash-info">
-                <span class="stash-index">stash@{{ '{' + index + '}' }}</span>
-                <span class="stash-date">{{ formatDate(stash.date) }}</span>
-              </div>
               <div class="stash-message">{{ stash.message || '(无消息)' }}</div>
-              <div class="stash-actions-row">
-                <NButton size="tiny" quaternary @click.stop="handleStashPop(index)">应用</NButton>
-                <NButton size="tiny" quaternary type="error" @click.stop="handleStashDrop(index)">删除</NButton>
+              <div class="stash-meta">
+                <span class="stash-date">{{ formatDate(stash.date) }}</span>
+                <div class="stash-actions-row">
+                  <NButton size="tiny" quaternary @click.stop="handleStashPop(index)">应用</NButton>
+                  <NButton size="tiny" quaternary type="error" @click.stop="handleStashDrop(index)">删除</NButton>
+                </div>
               </div>
             </div>
           </div>
@@ -222,14 +221,14 @@ onMounted(fetchStashList)
 .file-section { border-top: 1px solid var(--border-color); flex: 1; min-height: 0; }
 .section-header { padding: 8px 12px; font-size: 11px; font-weight: 600; color: var(--text-secondary); background: var(--bg-tertiary); flex-shrink: 0; }
 .stash-list { overflow-y: auto; flex: 1; }
-.stash-item { padding: 10px 14px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background 0.1s; }
+.stash-item { padding: 10px 14px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s; border-left: 2px solid transparent; }
 .stash-item:hover { background: var(--bg-hover); }
-.stash-item.selected { background: rgba(88, 166, 255, 0.1); }
-.stash-info { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.stash-index { font-family: monospace; font-size: 11px; font-weight: 600; color: var(--accent-orange); background: rgba(210, 153, 34, 0.12); padding: 1px 6px; border-radius: 3px; }
+.stash-item.selected { background: rgba(88, 166, 255, 0.08); border-left-color: var(--accent-blue); }
+.stash-message { font-size: 13px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 6px; font-weight: 500; }
+.stash-meta { display: flex; align-items: center; justify-content: space-between; }
 .stash-date { font-size: 11px; color: var(--text-muted); }
-.stash-message { font-size: 12px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; }
-.stash-actions-row { display: flex; gap: 2px; }
+.stash-actions-row { display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s; }
+.stash-item:hover .stash-actions-row { opacity: 1; }
 .file-list { overflow-y: auto; flex: 1; min-height: 0; }
 .file-item { display: flex; align-items: center; gap: 8px; padding: 5px 12px; cursor: pointer; font-size: 12px; border-bottom: 1px solid var(--border-color); transition: background 0.1s; }
 .file-item:hover { background: var(--bg-hover); }

@@ -86,8 +86,105 @@ const commitTypeOptions = [
 
 const stagedFiles = computed(() => stagingStore.stagedFiles)
 const unstagedFiles = computed(() => [...stagingStore.unstagedFiles, ...stagingStore.untrackedFiles])
-const conflictFiles = ref<string[]>([])
-const showConflictResolver = ref(false)
+const conflictFiles = computed(() => stagingStore.conflictedFiles)
+const selectedConflictFile = ref<string | null>(null)
+const conflictContent = ref('')
+const editedContent = ref('')
+const isEditingConflict = ref(false)
+const loadingConflict = ref(false)
+
+async function selectConflictFile(path: string) {
+  selectedConflictFile.value = path
+  selectedFile.value = path
+  selectedFileStaged.value = false
+  isEditingConflict.value = false
+  loadingConflict.value = true
+  try {
+    const result = await window.electronAPI.git.conflictFile(repo.value!.path, path)
+    conflictContent.value = result.working || ''
+    editedContent.value = result.working || ''
+  } finally {
+    loadingConflict.value = false
+  }
+}
+
+function getConflictParts(content: string) {
+  const lines = content.split('\n')
+  const result: { type: string; text: string }[] = []
+  let inConflict = false
+  for (const line of lines) {
+    if (line.startsWith('<<<<<<<')) { inConflict = true; result.push({ type: 'ours', text: line }); continue }
+    if (line.startsWith('=======')) { result.push({ type: 'separator', text: line }); continue }
+    if (line.startsWith('>>>>>>>')) { inConflict = false; result.push({ type: 'theirs', text: line }); continue }
+    if (inConflict) {
+      result.push({ type: 'ours', text: line })
+    } else {
+      result.push({ type: 'normal', text: line })
+    }
+  }
+  return result
+}
+
+function resolveWithOurs() {
+  if (!selectedConflictFile.value || !repo.value) return
+  const lines = conflictContent.value.split('\n')
+  const result: string[] = []
+  let take = false
+  for (const line of lines) {
+    if (line.startsWith('<<<<<<<')) { take = true; continue }
+    if (line.startsWith('=======')) { take = false; continue }
+    if (line.startsWith('>>>>>>>')) { continue }
+    if (take) result.push(line)
+  }
+  editedContent.value = result.join('\n')
+  saveConflictResolution()
+}
+
+function resolveWithTheirs() {
+  if (!selectedConflictFile.value || !repo.value) return
+  const lines = conflictContent.value.split('\n')
+  const result: string[] = []
+  let take = false
+  for (const line of lines) {
+    if (line.startsWith('<<<<<<<')) { take = false; continue }
+    if (line.startsWith('=======')) { take = true; continue }
+    if (line.startsWith('>>>>>>>')) { take = false; continue }
+    if (take) result.push(line)
+  }
+  editedContent.value = result.join('\n')
+  saveConflictResolution()
+}
+
+function startManualEdit() {
+  isEditingConflict.value = true
+}
+
+function cancelManualEdit() {
+  isEditingConflict.value = false
+  editedContent.value = conflictContent.value
+}
+
+async function saveConflictResolution() {
+  if (!selectedConflictFile.value || !repo.value) return
+  await window.electronAPI.git.resolveConflict(repo.value.path, selectedConflictFile.value, editedContent.value)
+  await stagingStore.fetchStatus(repo.value.path)
+  message.success('冲突已解决')
+  selectedConflictFile.value = null
+  conflictContent.value = ''
+  editedContent.value = ''
+  isEditingConflict.value = false
+}
+
+async function handleResolveAll() {
+  if (!repo.value || conflictFiles.value.length === 0) return
+  const paths = conflictFiles.value.map(f => f.path)
+  await window.electronAPI.git.add(repo.value.path, paths)
+  await stagingStore.fetchStatus(repo.value.path)
+  selectedConflictFile.value = null
+  conflictContent.value = ''
+  editedContent.value = ''
+  message.success('所有冲突已解决')
+}
 
 async function handleStageFile(path: string) {
   if (!repo.value) return
@@ -162,8 +259,7 @@ async function handlePull() {
       ])
     } else if (result.conflict) {
       message.warning('拉取有冲突，请解决')
-      const conflictResult = await window.electronAPI.git.conflictedFiles(repo.value.path)
-      conflictFiles.value = conflictResult.files || []
+      await stagingStore.fetchStatus(repo.value.path)
       showConflictResolver.value = true
     } else {
       message.error('拉取失败: ' + result.message)
@@ -176,11 +272,12 @@ async function handlePull() {
 function handleSelectFile(path: string, staged: boolean) {
   selectedFile.value = path
   selectedFileStaged.value = staged
+  selectedConflictFile.value = null
+  isEditingConflict.value = false
 }
 
 function onConflictResolved() {
   showConflictResolver.value = false
-  conflictFiles.value = []
   message.success('所有冲突已解决')
 }
 
@@ -240,6 +337,29 @@ function getStatusClass(file: FileChange): string {
         </div>
       </div>
 
+      <!-- Merge conflicts -->
+      <div class="file-section conflict-section" v-if="conflictFiles.length > 0">
+        <div class="section-header conflict-header">
+          <span class="section-title">合并冲突 ({{ conflictFiles.length }})</span>
+          <button class="section-action conflict-action" @click="handleResolveAll">全部标记已解决</button>
+        </div>
+        <div class="file-list">
+          <div
+            v-for="file in conflictFiles"
+            :key="'conflict-' + file.path"
+            class="file-item conflict-item"
+            :class="{ selected: selectedConflictFile === file.path }"
+            @click="selectConflictFile(file.path)"
+          >
+            <span class="file-status status-conflict">!</span>
+            <span class="file-path">{{ file.path }}</span>
+            <button class="file-action resolve" @click.stop="handleResolveConflict(file.path)" title="标记为已解决">
+              &#10003;
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Staged changes -->
       <div class="file-section" v-if="stagedFiles.length > 0">
         <div class="section-header">
@@ -287,20 +407,50 @@ function getStatusClass(file: FileChange): string {
       </div>
 
       <!-- Empty state -->
-      <div v-if="stagedFiles.length === 0 && unstagedFiles.length === 0" class="empty-state">
+      <div v-if="stagedFiles.length === 0 && unstagedFiles.length === 0 && conflictFiles.length === 0" class="empty-state">
         <NEmpty description="没有更改" />
       </div>
     </div>
 
     <!-- Diff viewer or Conflict resolver -->
     <div class="diff-container">
+      <!-- Conflict content view -->
+      <div v-if="selectedConflictFile && !loadingConflict" class="conflict-view-container">
+        <div class="conflict-file-header">
+          <span class="conflict-file-path">{{ selectedConflictFile }}</span>
+          <div class="conflict-actions">
+            <button class="conflict-btn ours" @click="resolveWithOurs">使用当前</button>
+            <button class="conflict-btn theirs" @click="resolveWithTheirs">使用引入</button>
+            <button class="conflict-btn manual" @click="startManualEdit">手动编辑</button>
+          </div>
+        </div>
+        <!-- Read-only conflict view -->
+        <div v-if="!isEditingConflict" class="conflict-content">
+          <div
+            v-for="(part, i) in getConflictParts(conflictContent)"
+            :key="i"
+            :class="'conflict-line conflict-' + part.type"
+          >{{ part.text }}</div>
+        </div>
+        <!-- Editable conflict view -->
+        <div v-else class="conflict-edit-area">
+          <textarea v-model="editedContent" class="conflict-textarea" spellcheck="false" />
+          <div class="conflict-edit-actions">
+            <button class="conflict-btn cancel" @click="cancelManualEdit">取消</button>
+            <button class="conflict-btn save" @click="saveConflictResolution">保存并标记已解决</button>
+          </div>
+        </div>
+      </div>
+      <div v-else-if="selectedConflictFile && loadingConflict" class="no-diff">
+        <NSpin size="medium" />
+      </div>
       <ConflictResolver
-        v-if="showConflictResolver && conflictFiles.length > 0"
+        v-else-if="showConflictResolver && conflictFiles.length > 0"
         :files="conflictFiles"
         @resolved="onConflictResolved"
       />
       <DiffViewer
-        v-else-if="selectedFile && repo"
+        v-else-if="selectedFile && repo && !selectedConflictFile"
         :repo-path="repo.path"
         :file-path="selectedFile"
         :staged="selectedFileStaged"
@@ -492,5 +642,181 @@ function getStatusClass(file: FileChange): string {
 
 .no-diff span {
   font-size: 48px;
+}
+
+/* Conflict section styles */
+.conflict-section {
+  border-bottom-color: rgba(248, 81, 73, 0.3);
+}
+
+.conflict-header {
+  background: rgba(248, 81, 73, 0.08);
+  color: var(--accent-red);
+}
+
+.conflict-action {
+  color: var(--accent-red) !important;
+}
+
+.conflict-action:hover {
+  background: rgba(248, 81, 73, 0.15) !important;
+}
+
+.conflict-item {
+  border-left: 2px solid transparent;
+}
+
+.conflict-item:hover {
+  border-left-color: var(--accent-red);
+}
+
+.conflict-item.selected {
+  background: rgba(248, 81, 73, 0.08);
+  border-left-color: var(--accent-red);
+}
+
+.status-conflict {
+  color: var(--accent-red);
+  font-weight: 700;
+}
+
+.file-action.resolve {
+  color: var(--accent-green);
+}
+
+.file-action.resolve:hover {
+  background: rgba(63, 185, 80, 0.15);
+}
+
+/* Conflict view in diff panel */
+.conflict-view-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.conflict-file-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: rgba(248, 81, 73, 0.08);
+  border-bottom: 1px solid rgba(248, 81, 73, 0.2);
+  flex-shrink: 0;
+}
+
+.conflict-file-path {
+  font-family: 'Cascadia Code', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-red);
+}
+
+.conflict-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.conflict-btn {
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.conflict-btn:hover { opacity: 0.85; }
+
+.conflict-btn.ours {
+  background: var(--accent-green);
+  color: white;
+}
+
+.conflict-btn.theirs {
+  background: var(--accent-red);
+  color: white;
+}
+
+.conflict-btn.manual {
+  background: var(--accent-purple);
+  color: white;
+}
+
+.conflict-btn.cancel {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.conflict-btn.save {
+  background: var(--accent-green);
+  color: white;
+}
+
+.conflict-content {
+  flex: 1;
+  overflow: auto;
+  font-family: 'Cascadia Code', 'Fira Code', 'SF Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.conflict-line {
+  padding: 0 16px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.conflict-ours {
+  background: rgba(63, 185, 80, 0.08);
+  color: var(--accent-green);
+}
+
+.conflict-separator {
+  background: rgba(188, 140, 255, 0.1);
+  color: var(--accent-purple);
+  font-weight: 600;
+}
+
+.conflict-theirs {
+  background: rgba(248, 81, 73, 0.08);
+  color: var(--accent-red);
+}
+
+.conflict-normal {
+  color: var(--text-primary);
+}
+
+.conflict-edit-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.conflict-textarea {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  padding: 12px 16px;
+  border: none;
+  outline: none;
+  resize: none;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Cascadia Code', 'Fira Code', 'SF Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+.conflict-edit-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 </style>

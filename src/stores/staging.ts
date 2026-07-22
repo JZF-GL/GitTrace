@@ -17,15 +17,19 @@ export const useStagingStore = defineStore('staging', () => {
   const behind = ref(0)
 
   const stagedFiles = computed(() =>
-    files.value.filter(f => f.index && f.index !== ' ')
+    files.value.filter(f => f.index && f.index !== ' ' && f.index !== 'U' && f.index !== '?' && f.workingDir !== 'U')
   )
 
   const unstagedFiles = computed(() =>
-    files.value.filter(f => f.workingDir && f.workingDir !== ' ')
+    files.value.filter(f => f.index !== '?' && f.index !== 'U' && f.workingDir && f.workingDir !== ' ' && f.workingDir !== 'U')
   )
 
   const untrackedFiles = computed(() =>
     files.value.filter(f => f.index === '?' && f.workingDir === '?')
+  )
+
+  const conflictedFiles = computed(() =>
+    files.value.filter(f => f.index === 'U' || f.workingDir === 'U')
   )
 
   async function fetchStatus(repoPath: string) {
@@ -125,6 +129,7 @@ export const useStagingStore = defineStore('staging', () => {
     stagedFiles,
     unstagedFiles,
     untrackedFiles,
+    conflictedFiles,
     fetchStatus,
     stageFiles,
     stageAll,
