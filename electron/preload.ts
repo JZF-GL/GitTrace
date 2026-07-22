@@ -10,6 +10,7 @@ const gitAPI = {
   add: (repoPath: string, files: string[]) => ipcRenderer.invoke('git:add', repoPath, files),
   addAll: (repoPath: string) => ipcRenderer.invoke('git:add-all', repoPath),
   reset: (repoPath: string, files: string[]) => ipcRenderer.invoke('git:reset', repoPath, files),
+  restore: (repoPath: string, files: string[]) => ipcRenderer.invoke('git:restore', repoPath, files),
   commit: (repoPath: string, message: string) => ipcRenderer.invoke('git:commit', repoPath, message),
   push: (repoPath: string, remote?: string, branch?: string) => ipcRenderer.invoke('git:push', repoPath, remote, branch),
   pull: (repoPath: string, remote?: string, branch?: string) => ipcRenderer.invoke('git:pull', repoPath, remote, branch),

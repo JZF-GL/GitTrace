@@ -41,6 +41,10 @@ export function registerGitHandlers() {
     return gitService.resetFiles(repoPath, files)
   })
 
+  ipcMain.handle('git:restore', async (_event, repoPath: string, files: string[]) => {
+    return gitService.restoreFiles(repoPath, files)
+  })
+
   ipcMain.handle('git:commit', async (_event, repoPath: string, message: string) => {
     return gitService.commit(repoPath, message)
   })

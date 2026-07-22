@@ -99,6 +99,16 @@ export const useStagingStore = defineStore('staging', () => {
     }
   }
 
+  async function restoreFiles(repoPath: string, paths: string[]) {
+    try {
+      console.log('[StagingStore] restoreFiles:', paths)
+      await window.electronAPI.git.restore(repoPath, paths)
+      await fetchStatus(repoPath)
+    } catch (e) {
+      console.error('[StagingStore] restoreFiles error:', e)
+    }
+  }
+
   function toggleSelect(path: string) {
     const newSet = new Set(selectedFiles.value)
     if (newSet.has(path)) {
@@ -134,6 +144,7 @@ export const useStagingStore = defineStore('staging', () => {
     stageFiles,
     stageAll,
     unstageFiles,
+    restoreFiles,
     toggleSelect,
     clearSelection,
     clear,

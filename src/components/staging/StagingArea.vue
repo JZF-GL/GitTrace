@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { NButton, NInput, NSpace, NEmpty, NSelect, useMessage } from 'naive-ui'
+import { NButton, NInput, NSpace, NEmpty, NSelect, useMessage, useDialog } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useStagingStore, type FileChange } from '../../stores/staging'
 import { useCommitsStore } from '../../stores/commits'
@@ -13,6 +13,7 @@ const stagingStore = useStagingStore()
 const commitsStore = useCommitsStore()
 const branchesStore = useBranchesStore()
 const message = useMessage()
+const dialog = useDialog()
 
 const selectedFile = ref<string | null>(null)
 const selectedFileStaged = ref(false)
@@ -209,6 +210,36 @@ async function handleUnstageAll() {
   }
 }
 
+function handleDiscardChange(path: string) {
+  if (!repo.value) return
+  dialog.warning({
+    title: '放弃更改',
+    content: `确定要放弃对 "${path}" 的更改吗？此操作不可撤销。`,
+    positiveText: '确定放弃',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      await stagingStore.restoreFiles(repo.value!.path, [path])
+      message.success('已放弃更改')
+    },
+  })
+}
+
+function handleDiscardAllChanges() {
+  if (!repo.value || unstagedFiles.value.length === 0) return
+  const count = unstagedFiles.value.length
+  dialog.warning({
+    title: '放弃所有更改',
+    content: `确定要放弃所有 ${count} 个文件的更改吗？此操作不可撤销。`,
+    positiveText: '确定放弃',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      const paths = unstagedFiles.value.map(f => f.path)
+      await stagingStore.restoreFiles(repo.value!.path, paths)
+      message.success('已放弃所有更改')
+    },
+  })
+}
+
 async function handleDiscard(file: FileChange) {
   if (!repo.value) return
   // Reset the file to last commit
@@ -387,7 +418,10 @@ function getStatusClass(file: FileChange): string {
       <div class="file-section" v-if="unstagedFiles.length > 0">
         <div class="section-header">
           <span class="section-title">更改 ({{ unstagedFiles.length }})</span>
-          <button class="section-action" @click="handleStageAll">全部暂存</button>
+          <div class="section-actions">
+            <button class="section-action discard-all" @click="handleDiscardAllChanges">放弃所有更改</button>
+            <button class="section-action" @click="handleStageAll">全部暂存</button>
+          </div>
         </div>
         <div class="file-list">
           <div
@@ -399,9 +433,14 @@ function getStatusClass(file: FileChange): string {
           >
             <span class="file-status" :class="getStatusClass(file)">{{ getStatusSymbol(file) }}</span>
             <span class="file-path">{{ file.path }}</span>
-            <button class="file-action stage" @click.stop="handleStageFile(file.path)" title="暂存更改">
-              +
-            </button>
+            <div class="file-actions">
+              <button class="file-action discard" @click.stop="handleDiscardChange(file.path)" title="放弃更改">
+                &#8634;
+              </button>
+              <button class="file-action stage" @click.stop="handleStageFile(file.path)" title="暂存更改">
+                +
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -535,6 +574,19 @@ function getStatusClass(file: FileChange): string {
   background: rgba(88, 166, 255, 0.1);
 }
 
+.section-action.discard-all {
+  color: var(--accent-red);
+}
+
+.section-action.discard-all:hover {
+  background: rgba(248, 81, 73, 0.15);
+}
+
+.section-actions {
+  display: flex;
+  gap: 4px;
+}
+
 .file-list {
   flex: 1;
   overflow-y: auto;
@@ -614,6 +666,19 @@ function getStatusClass(file: FileChange): string {
 
 .file-action.unstage:hover {
   background: rgba(210, 153, 34, 0.15);
+}
+
+.file-action.discard {
+  color: var(--accent-red);
+}
+
+.file-action.discard:hover {
+  background: rgba(248, 81, 73, 0.15);
+}
+
+.file-actions {
+  display: flex;
+  gap: 2px;
 }
 
 .empty-state {

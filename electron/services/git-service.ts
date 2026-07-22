@@ -112,6 +112,38 @@ export async function resetFiles(repoPath: string, files: string[]): Promise<voi
   await git.reset(['HEAD', ...files])
 }
 
+export async function restoreFiles(repoPath: string, files: string[]): Promise<void> {
+  const git = getGit(repoPath)
+  const fs = require('fs')
+  const path = require('path')
+
+  // 先获取状态，区分已跟踪和未跟踪文件
+  const status = await git.status()
+  const trackedFiles: string[] = []
+  const untrackedFiles: string[] = []
+
+  for (const file of files) {
+    if (status.not_added.includes(file) || status.created.includes(file)) {
+      untrackedFiles.push(file)
+    } else {
+      trackedFiles.push(file)
+    }
+  }
+
+  // 已跟踪文件使用 checkout
+  if (trackedFiles.length > 0) {
+    await git.checkout(['--', ...trackedFiles])
+  }
+
+  // 未跟踪文件直接删除
+  for (const file of untrackedFiles) {
+    const fullPath = path.join(repoPath, file)
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath)
+    }
+  }
+}
+
 export async function commit(repoPath: string, message: string): Promise<any> {
   const git = getGit(repoPath)
   const result = await git.commit(message)

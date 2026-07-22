@@ -6,6 +6,9 @@ dist/
 dist-electron/
 release/
 
+# Debug
+debug-screenshot/
+
 # IDE
 .vscode/
 .idea/
