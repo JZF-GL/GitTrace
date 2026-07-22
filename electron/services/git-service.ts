@@ -1,4 +1,4 @@
-import simpleGit, { SimpleGit, LogResult, StatusResult, DiffResult } from 'simple-git'
+import simpleGit, { SimpleGit, LogResult, StatusResult } from 'simple-git'
 
 const gitInstances = new Map<string, SimpleGit>()
 
@@ -57,17 +57,21 @@ export async function getLog(repoPath: string, options?: { maxCount?: number; fr
   }
 }
 
-export async function getLogGraph(repoPath: string, maxCount: number = 200): Promise<string> {
+export async function getLogGraph(repoPath: string, maxCount: number = 200, branch?: string): Promise<string> {
   const git = getGit(repoPath)
-  const result = await git.raw([
+  const args = [
     'log',
-    '--graph',
-    '--all',
     '--oneline',
     '--decorate',
     '--format=%H|%P|%h|%an|%ai|%s',
     `--max-count=${maxCount}`,
-  ])
+  ]
+  if (branch) {
+    args.push(branch)
+  } else {
+    args.push('--all')
+  }
+  const result = await git.raw(args)
   console.log('[GitService] logGraph raw output (first 1000 chars):', result.substring(0, 1000))
   return result
 }
@@ -80,9 +84,9 @@ export async function getDiff(repoPath: string, file?: string): Promise<string> 
   return git.diff()
 }
 
-export async function getDiffIndex(repoPath: string): Promise<DiffResult> {
+export async function getDiffIndex(repoPath: string): Promise<any> {
   const git = getGit(repoPath)
-  return git.diffStatus()
+  return git.status()
 }
 
 export async function getDiffStaged(repoPath: string, file?: string): Promise<string> {
@@ -246,18 +250,33 @@ export async function stashList(repoPath: string): Promise<any> {
 }
 
 export async function stashPush(repoPath: string, message?: string): Promise<any> {
-  const git = getGit(repoPath)
-  return git.stashPush(message ? ['-m', message] : [])
+  try {
+    const git = getGit(repoPath)
+    await git.stash(message ? ['push', '-m', message] : ['push'])
+    return { success: true, message: '暂存成功' }
+  } catch (e: any) {
+    return { success: false, message: e.message || String(e) }
+  }
 }
 
-export async function stashPop(repoPath: string): Promise<any> {
-  const git = getGit(repoPath)
-  return git.stashPop()
+export async function stashPop(repoPath: string, stashRef?: string): Promise<any> {
+  try {
+    const git = getGit(repoPath)
+    await git.stash(['pop', ...(stashRef ? [stashRef] : [])])
+    return { success: true, message: '弹出成功' }
+  } catch (e: any) {
+    return { success: false, message: e.message || String(e) }
+  }
 }
 
 export async function stashDrop(repoPath: string, stashRef: string): Promise<any> {
-  const git = getGit(repoPath)
-  return git.stashDrop(stashRef)
+  try {
+    const git = getGit(repoPath)
+    await git.stash(['drop', stashRef])
+    return { success: true, message: '删除成功' }
+  } catch (e: any) {
+    return { success: false, message: e.message || String(e) }
+  }
 }
 
 export async function tagList(repoPath: string): Promise<any> {
@@ -445,25 +464,32 @@ export async function resolveConflict(repoPath: string, filePath: string, conten
 export async function getCommitFiles(repoPath: string, commitHash: string): Promise<any> {
   try {
     const git = getGit(repoPath)
+    console.log('[GitService] getCommitFiles called with:', commitHash)
     // Check if it's the first commit
     const catFile = await git.raw(['cat-file', '-p', commitHash])
     const parentMatch = catFile.match(/^parent\s+(\w+)/m)
     if (!parentMatch) {
       // Root commit - list all files in the tree
       const result = await git.raw(['diff-tree', '--no-commit-id', '-r', '--name-status', '--root', commitHash])
+      console.log('[GitService] root commit diff-tree result:', result)
       const files = result.split('\n').filter(l => l.trim()).map(l => {
         const parts = l.trim().split('\t')
         return { status: parts[0] || 'A', path: parts[1] || parts[0] }
       }).filter(f => f.path)
+      console.log('[GitService] root commit files:', files)
       return { files }
     }
-    const result = await git.raw(['diff-tree', '--no-commit-id', '-r', '--name-status', commitHash])
+    // Use -m for merge commits to show changes against first parent
+    const result = await git.raw(['diff-tree', '--no-commit-id', '-r', '-m', '--name-status', commitHash])
+    console.log('[GitService] diff-tree result:', result)
     const files = result.split('\n').filter(l => l.trim()).map(l => {
       const parts = l.trim().split('\t')
       return { status: parts[0], path: parts[1] }
     }).filter(f => f.path)
+    console.log('[GitService] parsed files:', files)
     return { files }
   } catch (e: any) {
+    console.error('[GitService] getCommitFiles error:', e)
     return { files: [], error: e.message }
   }
 }
@@ -472,21 +498,27 @@ export async function getCommitFiles(repoPath: string, commitHash: string): Prom
 export async function getCommitDiff(repoPath: string, commitHash: string, filePath?: string): Promise<string> {
   try {
     const git = getGit(repoPath)
-    // Check if it's the first commit (no parent)
+    console.log('[GitService] getCommitDiff called:', { commitHash, filePath })
+    // Check if it's a merge commit
     const catFile = await git.raw(['cat-file', '-p', commitHash])
-    const parentMatch = catFile.match(/^parent\s+(\w+)/m)
-    if (!parentMatch) {
-      // Root commit - show full tree diff
-      if (filePath) {
-        return await git.raw(['diff', '--root', commitHash, '--', filePath])
-      }
-      return await git.raw(['diff', '--root', commitHash])
+    const parentMatches = catFile.match(/^parent\s+(\w+)/gm)
+    const isMerge = parentMatches && parentMatches.length > 1
+
+    const fileArgs = filePath ? ['--', filePath] : []
+
+    if (isMerge) {
+      // For merge commits, use -m to diff against each parent
+      const result = await git.raw(['diff-tree', '-p', '-m', commitHash, ...fileArgs])
+      console.log('[GitService] merge commit diff result length:', result.length)
+      return result
     }
-    if (filePath) {
-      return await git.raw(['diff', `${commitHash}^`, commitHash, '--', filePath])
-    }
-    return await git.raw(['diff', `${commitHash}^`, commitHash])
+
+    // For regular commits
+    const result = await git.raw(['diff-tree', '-p', commitHash, ...fileArgs])
+    console.log('[GitService] diff result length:', result.length)
+    return result
   } catch (e: any) {
+    console.error('[GitService] getCommitDiff error:', e)
     return e.message || String(e)
   }
 }

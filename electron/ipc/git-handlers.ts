@@ -13,8 +13,8 @@ export function registerGitHandlers() {
     return gitService.getLog(repoPath, options)
   })
 
-  ipcMain.handle('git:log-graph', async (_event, repoPath: string, maxCount?: number) => {
-    return gitService.getLogGraph(repoPath, maxCount)
+  ipcMain.handle('git:log-graph', async (_event, repoPath: string, maxCount?: number, branch?: string) => {
+    return gitService.getLogGraph(repoPath, maxCount, branch)
   })
 
   ipcMain.handle('git:diff', async (_event, repoPath: string, file?: string) => {
@@ -88,8 +88,8 @@ export function registerGitHandlers() {
     return gitService.stashPush(repoPath, message)
   })
 
-  ipcMain.handle('git:stash-pop', async (_event, repoPath: string) => {
-    return gitService.stashPop(repoPath)
+  ipcMain.handle('git:stash-pop', async (_event, repoPath: string, stashRef?: string) => {
+    return gitService.stashPop(repoPath, stashRef)
   })
 
   ipcMain.handle('git:stash-drop', async (_event, repoPath: string, stashRef: string) => {

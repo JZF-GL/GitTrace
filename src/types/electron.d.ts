@@ -2,7 +2,7 @@ export interface ElectronAPI {
   git: {
     status: (repoPath: string) => Promise<any>
     log: (repoPath: string, options?: { maxCount?: number; from?: string; to?: string }) => Promise<any>
-    logGraph: (repoPath: string, maxCount?: number) => Promise<string>
+    logGraph: (repoPath: string, maxCount?: number, branch?: string) => Promise<string>
     diff: (repoPath: string, file?: string) => Promise<string>
     diffIndex: (repoPath: string) => Promise<any>
     diffStaged: (repoPath: string, file?: string) => Promise<string>
@@ -21,7 +21,7 @@ export interface ElectronAPI {
     rebase: (repoPath: string, branch: string) => Promise<any>
     stashList: (repoPath: string) => Promise<any>
     stashPush: (repoPath: string, message?: string) => Promise<any>
-    stashPop: (repoPath: string) => Promise<any>
+    stashPop: (repoPath: string, stashRef?: string) => Promise<any>
     stashDrop: (repoPath: string, stashRef: string) => Promise<any>
     tagList: (repoPath: string) => Promise<any>
     tagCreate: (repoPath: string, tagName: string, ref?: string) => Promise<any>

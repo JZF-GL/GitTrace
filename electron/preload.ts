@@ -3,7 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 const gitAPI = {
   status: (repoPath: string) => ipcRenderer.invoke('git:status', repoPath),
   log: (repoPath: string, options?: any) => ipcRenderer.invoke('git:log', repoPath, options),
-  logGraph: (repoPath: string, maxCount?: number) => ipcRenderer.invoke('git:log-graph', repoPath, maxCount),
+  logGraph: (repoPath: string, maxCount?: number, branch?: string) => ipcRenderer.invoke('git:log-graph', repoPath, maxCount, branch),
   diff: (repoPath: string, file?: string) => ipcRenderer.invoke('git:diff', repoPath, file),
   diffIndex: (repoPath: string) => ipcRenderer.invoke('git:diff-index', repoPath),
   diffStaged: (repoPath: string, file?: string) => ipcRenderer.invoke('git:diff-staged', repoPath, file),
@@ -27,7 +27,7 @@ const gitAPI = {
   rebase: (repoPath: string, branch: string) => ipcRenderer.invoke('git:rebase', repoPath, branch),
   stashList: (repoPath: string) => ipcRenderer.invoke('git:stash-list', repoPath),
   stashPush: (repoPath: string, message?: string) => ipcRenderer.invoke('git:stash-push', repoPath, message),
-  stashPop: (repoPath: string) => ipcRenderer.invoke('git:stash-pop', repoPath),
+  stashPop: (repoPath: string, stashRef?: string) => ipcRenderer.invoke('git:stash-pop', repoPath, stashRef),
   stashDrop: (repoPath: string, stashRef: string) => ipcRenderer.invoke('git:stash-drop', repoPath, stashRef),
   tagList: (repoPath: string) => ipcRenderer.invoke('git:tag-list', repoPath),
   tagCreate: (repoPath: string, tagName: string, ref?: string) => ipcRenderer.invoke('git:tag-create', repoPath, tagName, ref),

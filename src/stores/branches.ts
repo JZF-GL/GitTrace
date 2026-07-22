@@ -15,14 +15,18 @@ export const useBranchesStore = defineStore('branches', () => {
   const loading = ref(false)
 
   async function fetchBranches(repoPath: string) {
+    loading.value = true
     try {
       const result = await window.electronAPI.git.branchList(repoPath)
-      // Update all at once to avoid flicker
+      console.log('[BranchStore] fetchBranches result:', result)
       branches.value = result.local || []
       remoteBranches.value = result.remote || []
       current.value = result.current || ''
+      console.log('[BranchStore] branches set to:', branches.value)
     } catch (e) {
       console.error('[BranchStore] fetchBranches error:', e)
+    } finally {
+      loading.value = false
     }
   }
 
@@ -31,7 +35,7 @@ export const useBranchesStore = defineStore('branches', () => {
     const stagingStore = useStagingStore()
     await Promise.all([
       fetchBranches(repoPath),
-      commitsStore.fetchGraph(repoPath),
+      commitsStore.fetchGraphForCurrent(repoPath, current.value),
       stagingStore.fetchStatus(repoPath),
     ])
   }

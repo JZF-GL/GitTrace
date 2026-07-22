@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, protocol, session } from 'electron'
 import { join } from 'path'
 import { registerGitHandlers } from './ipc/git-handlers'
 import { registerRepoHandlers } from './ipc/repo-handlers'
@@ -42,6 +42,15 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Deny Autofill permission to suppress console warning
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    if (permission === 'autofill') {
+      callback(false)
+    } else {
+      callback(true)
+    }
+  })
+
   // Register IPC handlers BEFORE creating window
   registerGitHandlers()
   registerRepoHandlers()

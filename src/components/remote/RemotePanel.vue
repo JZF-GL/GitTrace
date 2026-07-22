@@ -112,8 +112,8 @@ onMounted(fetchRemotes)
     <NModal v-model:show="showAddRemote">
       <div class="modal-content">
         <h3>添加远程仓库</h3>
-        <NInput v-model:value="newRemoteName.value" placeholder="名称 (如 origin)" style="margin-top: 12px" />
-        <NInput v-model:value="newRemoteUrl.value" placeholder="URL" style="margin-top: 8px" />
+        <NInput v-model:value="newRemoteName" placeholder="名称 (如 origin)" style="margin-top: 12px" />
+        <NInput v-model:value="newRemoteUrl" placeholder="URL" style="margin-top: 8px" />
         <NSpace style="margin-top: 12px">
           <NButton type="primary" @click="handleAddRemote" :disabled="!newRemoteName.value || !newRemoteUrl.value">添加</NButton>
           <NButton @click="showAddRemote = false">取消</NButton>

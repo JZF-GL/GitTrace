@@ -29,10 +29,13 @@ watch(() => props.commit, async (commit) => {
     return
   }
 
+  console.log('[CommitDetailPanel] commit changed:', commit.hash, commit.shortHash)
   loading.value = true
   try {
     const result = await window.electronAPI.git.commitFiles(repo.value.path, commit.hash)
+    console.log('[CommitDetailPanel] commitFiles result:', result)
     files.value = result.files || []
+    console.log('[CommitDetailPanel] files:', files.value)
     if (files.value.length > 0) {
       selectedFile.value = files.value[0].path
     }
@@ -47,9 +50,11 @@ watch(selectedFile, async (file) => {
     return
   }
 
+  console.log('[CommitDetailPanel] fetching diff for:', file)
   loadingDiff.value = true
   try {
     diff.value = await window.electronAPI.git.commitDiff(repo.value.path, props.commit.hash, file)
+    console.log('[CommitDetailPanel] diff result length:', diff.value?.length)
   } finally {
     loadingDiff.value = false
   }
@@ -139,7 +144,7 @@ function getDiffLines(text: string) {
 .commit-detail-panel {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: calc(100% - 45px);
   border-top: 1px solid var(--border-color);
 }
 
@@ -304,5 +309,6 @@ function getDiffLines(text: string) {
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 100%;
 }
 </style>

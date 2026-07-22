@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { NInput, NEmpty, NSpin, NButton, NSpace, NDropdown, useMessage } from 'naive-ui'
+import { computed, ref, watch } from 'vue'
+import { NInput, NEmpty, NSpin, NButton, NSpace, NDropdown, NSelect, useMessage } from 'naive-ui'
 import { useCommitsStore } from '../../stores/commits'
 import { useRepositoryStore } from '../../stores/repository'
+import { useBranchesStore } from '../../stores/branches'
 import { useStagingStore } from '../../stores/staging'
 import CommitGraph from './CommitGraph.vue'
 import CommitDetailPanel from './CommitDetailPanel.vue'
@@ -10,6 +11,7 @@ import type { GraphCommit } from '../../stores/commits'
 
 const commitsStore = useCommitsStore()
 const repoStore = useRepositoryStore()
+const branchesStore = useBranchesStore()
 const stagingStore = useStagingStore()
 const message = useMessage()
 
@@ -21,6 +23,17 @@ const commits = computed(() => commitsStore.commits)
 const loading = computed(() => commitsStore.loading)
 const repo = computed(() => repoStore.currentRepo)
 
+const branchOptions = computed(() => {
+  const options: { label: string; value: string | null }[] = [
+    { label: '当前分支', value: null },
+    { label: '所有分支', value: '__all__' },
+  ]
+  for (const b of branchesStore.branches) {
+    options.push({ label: b.name, value: b.name })
+  }
+  return options
+})
+
 const filteredCommits = computed(() => {
   if (!searchText.value) return commits.value
   const q = searchText.value.toLowerCase()
@@ -29,6 +42,15 @@ const filteredCommits = computed(() => {
     c.author.toLowerCase().includes(q) ||
     c.shortHash.includes(q)
   )
+})
+
+async function fetchCommits() {
+  if (!repo.value) return
+  await commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current)
+}
+
+watch(() => commitsStore.branchFilter, () => {
+  fetchCommits()
 })
 
 function selectCommit(commit: GraphCommit) {
@@ -69,10 +91,8 @@ async function handleAction(key: string) {
 
   if (result?.success) {
     message.success(result.message)
-    await Promise.all([
-      commitsStore.fetchGraph(repo.value.path),
-      stagingStore.fetchStatus(repo.value.path),
-    ])
+    await fetchCommits()
+    await stagingStore.fetchStatus(repo.value.path)
   } else {
     message.error(result?.message || '操作失败')
   }
@@ -82,7 +102,14 @@ async function handleAction(key: string) {
 <template>
   <div class="commit-history">
     <div class="history-sidebar">
-      <div class="search-bar">
+      <div class="filter-bar">
+        <NSelect
+          v-model:value="commitsStore.branchFilter"
+          :options="branchOptions"
+          size="small"
+          style="width: 140px"
+          placeholder="分支筛选"
+        />
         <NInput
           v-model:value="searchText"
           placeholder="搜索提交信息、作者..."
@@ -147,10 +174,13 @@ async function handleAction(key: string) {
   flex-shrink: 0;
 }
 
-.search-bar {
+.filter-bar {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .commit-list {

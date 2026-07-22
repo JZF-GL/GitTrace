@@ -4,12 +4,14 @@ import { NButton, NInput, NSpace, NEmpty, NSelect, useMessage } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useStagingStore, type FileChange } from '../../stores/staging'
 import { useCommitsStore } from '../../stores/commits'
+import { useBranchesStore } from '../../stores/branches'
 import DiffViewer from './DiffViewer.vue'
 import ConflictResolver from '../conflict/ConflictResolver.vue'
 
 const repoStore = useRepositoryStore()
 const stagingStore = useStagingStore()
 const commitsStore = useCommitsStore()
+const branchesStore = useBranchesStore()
 const message = useMessage()
 
 const selectedFile = ref<string | null>(null)
@@ -156,7 +158,7 @@ async function handlePull() {
       message.success('拉取成功')
       await Promise.all([
         stagingStore.fetchStatus(repo.value.path),
-        commitsStore.fetchGraph(repo.value.path),
+        commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
       ])
     } else if (result.conflict) {
       message.warning('拉取有冲突，请解决')

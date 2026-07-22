@@ -23,10 +23,10 @@ watch(() => repoStore.currentRepo, async (repo) => {
     branchesStore.clear()
     return
   }
+  await branchesStore.fetchBranches(repo.path)
   await Promise.all([
-    commitsStore.fetchGraph(repo.path),
+    commitsStore.fetchGraphForCurrent(repo.path, branchesStore.current),
     stagingStore.fetchStatus(repo.path),
-    branchesStore.fetchBranches(repo.path),
   ])
 }, { immediate: true })
 </script>

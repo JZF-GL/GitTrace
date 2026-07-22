@@ -17,11 +17,12 @@ export const useCommitsStore = defineStore('commits', () => {
   const commits = ref<GraphCommit[]>([])
   const loading = ref(false)
   const maxCount = ref(200)
+  const branchFilter = ref<string | null>(null)
 
-  async function fetchGraph(repoPath: string) {
+  async function fetchGraph(repoPath: string, branch?: string) {
     loading.value = true
     try {
-      const raw = await window.electronAPI.git.logGraph(repoPath, maxCount.value)
+      const raw = await window.electronAPI.git.logGraph(repoPath, maxCount.value, branch)
       console.log('[CommitsStore] raw log output:', raw.substring(0, 500))
       const parsed = parseGraphOutput(raw)
       console.log('[CommitsStore] parsed commits:', parsed.map(c => ({ hash: c.shortHash, column: c.column, parents: c.parentHashes.length })))
@@ -29,6 +30,11 @@ export const useCommitsStore = defineStore('commits', () => {
     } finally {
       loading.value = false
     }
+  }
+
+  async function fetchGraphForCurrent(repoPath: string, currentBranch: string) {
+    const branch = branchFilter.value === '__all__' ? undefined : branchFilter.value || currentBranch
+    await fetchGraph(repoPath, branch)
   }
 
   function parseGraphOutput(raw: string): GraphCommit[] {
@@ -117,5 +123,5 @@ export const useCommitsStore = defineStore('commits', () => {
     commits.value = []
   }
 
-  return { commits, loading, maxCount, fetchGraph, clear }
+  return { commits, loading, maxCount, branchFilter, fetchGraph, fetchGraphForCurrent, clear }
 })

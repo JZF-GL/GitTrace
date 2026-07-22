@@ -24,7 +24,7 @@ const branchName = computed(() => branchesStore.current)
 async function handleRefresh() {
   if (!repo.value) return
   await Promise.all([
-    commitsStore.fetchGraph(repo.value.path),
+    commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
     stagingStore.fetchStatus(repo.value.path),
     branchesStore.fetchBranches(repo.value.path),
   ])
