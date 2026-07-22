@@ -252,7 +252,7 @@ export async function stashList(repoPath: string): Promise<any> {
 export async function stashPush(repoPath: string, message?: string): Promise<any> {
   try {
     const git = getGit(repoPath)
-    await git.stash(message ? ['push', '-m', message] : ['push'])
+    await git.stash(message ? ['push', '--include-untracked', '-m', message] : ['push', '--include-untracked'])
     return { success: true, message: '暂存成功' }
   } catch (e: any) {
     return { success: false, message: e.message || String(e) }
@@ -276,6 +276,39 @@ export async function stashDrop(repoPath: string, stashRef: string): Promise<any
     return { success: true, message: '删除成功' }
   } catch (e: any) {
     return { success: false, message: e.message || String(e) }
+  }
+}
+
+export async function stashShowFiles(repoPath: string, stashRef: string): Promise<any> {
+  try {
+    const git = getGit(repoPath)
+    const result = await git.raw(['stash', 'show', '--name-status', '-u', stashRef])
+    const files = result.split('\n').filter(l => l.trim()).map(l => {
+      const parts = l.trim().split('\t')
+      return { status: parts[0] || 'M', path: parts[1] || '' }
+    }).filter(f => f.path)
+    return { files }
+  } catch (e: any) {
+    return { files: [], error: e.message }
+  }
+}
+
+export async function stashShowDiff(repoPath: string, stashRef: string, filePath?: string): Promise<string> {
+  try {
+    const git = getGit(repoPath)
+    const fullDiff = await git.raw(['stash', 'show', '-p', '-u', stashRef])
+    if (!filePath) return fullDiff
+    // Parse full diff to extract specific file's diff
+    const sections = fullDiff.split(/^diff --git /m).filter(s => s.trim())
+    for (const section of sections) {
+      const header = section.split('\n')[0]
+      if (header.includes('a/' + filePath) || header.includes('b/' + filePath)) {
+        return 'diff --git ' + section
+      }
+    }
+    return ''
+  } catch (e: any) {
+    return e.message || String(e)
   }
 }
 

@@ -96,6 +96,14 @@ export function registerGitHandlers() {
     return gitService.stashDrop(repoPath, stashRef)
   })
 
+  ipcMain.handle('git:stash-show-files', async (_event, repoPath: string, stashRef: string) => {
+    return gitService.stashShowFiles(repoPath, stashRef)
+  })
+
+  ipcMain.handle('git:stash-show-diff', async (_event, repoPath: string, stashRef: string, filePath?: string) => {
+    return gitService.stashShowDiff(repoPath, stashRef, filePath)
+  })
+
   ipcMain.handle('git:tag-list', async (_event, repoPath: string) => {
     return gitService.tagList(repoPath)
   })
