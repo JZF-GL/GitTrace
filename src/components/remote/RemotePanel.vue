@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { NButton, NSpace, NEmpty, NInput, NModal, NAlert } from 'naive-ui'
+import { NButton, NSpace, NEmpty, NInput, NModal, NAlert, useMessage, useDialog } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
+import { useBranchesStore } from '../../stores/branches'
+import { useCommitsStore } from '../../stores/commits'
+import { useStagingStore } from '../../stores/staging'
 
 const repoStore = useRepositoryStore()
+const branchesStore = useBranchesStore()
+const commitsStore = useCommitsStore()
+const stagingStore = useStagingStore()
+const message = useMessage()
+const dialog = useDialog()
 const repo = computed(() => repoStore.currentRepo)
 
 const remotes = ref<any[]>([])
@@ -27,8 +35,14 @@ async function handleFetch() {
   try {
     await window.electronAPI.git.fetch(repo.value.path)
     progress.value = '获取完成'
+    await Promise.all([
+      branchesStore.fetchBranches(repo.value.path),
+      commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
+    ])
+    message.success('获取完成')
   } catch (e: any) {
     error.value = e.message
+    message.error('获取失败: ' + e.message)
   } finally {
     loading.value = false
     setTimeout(() => { progress.value = '' }, 2000)
@@ -41,10 +55,21 @@ async function handlePull() {
   error.value = ''
   progress.value = '正在拉取...'
   try {
-    await window.electronAPI.git.pull(repo.value.path)
-    progress.value = '拉取完成'
+    const result = await window.electronAPI.git.pull(repo.value.path)
+    if (result?.conflict) {
+      message.warning('拉取有冲突，请在工作区解决')
+    } else {
+      progress.value = '拉取完成'
+      message.success('拉取完成')
+    }
+    await Promise.all([
+      branchesStore.fetchBranches(repo.value.path),
+      commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
+      stagingStore.fetchStatus(repo.value.path),
+    ])
   } catch (e: any) {
     error.value = e.message
+    message.error('拉取失败: ' + e.message)
   } finally {
     loading.value = false
     setTimeout(() => { progress.value = '' }, 2000)
@@ -57,10 +82,20 @@ async function handlePush() {
   error.value = ''
   progress.value = '正在推送...'
   try {
-    await window.electronAPI.git.push(repo.value.path)
-    progress.value = '推送完成'
+    const result = await window.electronAPI.git.push(repo.value.path)
+    if (result?.success) {
+      progress.value = '推送完成'
+      message.success('推送完成')
+    } else {
+      message.error('推送失败: ' + (result?.message || '未知错误'))
+    }
+    await Promise.all([
+      branchesStore.fetchBranches(repo.value.path),
+      commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
+    ])
   } catch (e: any) {
     error.value = e.message
+    message.error('推送失败: ' + e.message)
   } finally {
     loading.value = false
     setTimeout(() => { progress.value = '' }, 2000)
@@ -78,8 +113,17 @@ async function handleAddRemote() {
 
 async function handleRemoveRemote(name: string) {
   if (!repo.value) return
-  await window.electronAPI.git.remoteRemove(repo.value.path, name)
-  await fetchRemotes()
+  dialog.warning({
+    title: '删除远程仓库',
+    content: `确定要删除远程仓库 "${name}" 吗？此操作不可撤销。`,
+    positiveText: '确定删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      await window.electronAPI.git.remoteRemove(repo.value!.path, name)
+      await fetchRemotes()
+      message.success('已删除远程仓库')
+    },
+  })
 }
 
 onMounted(fetchRemotes)
@@ -115,7 +159,7 @@ onMounted(fetchRemotes)
         <NInput v-model:value="newRemoteName" placeholder="名称 (如 origin)" style="margin-top: 12px" />
         <NInput v-model:value="newRemoteUrl" placeholder="URL" style="margin-top: 8px" />
         <NSpace style="margin-top: 12px">
-          <NButton type="primary" @click="handleAddRemote" :disabled="!newRemoteName.value || !newRemoteUrl.value">添加</NButton>
+          <NButton type="primary" @click="handleAddRemote" :disabled="!newRemoteName || !newRemoteUrl">添加</NButton>
           <NButton @click="showAddRemote = false">取消</NButton>
         </NSpace>
       </div>

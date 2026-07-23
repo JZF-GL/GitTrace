@@ -66,11 +66,6 @@ async function handleRefresh() {
             <StagingArea />
           </div>
         </NTabPane>
-        <NTabPane name="remote" tab="远程">
-          <div class="tab-content">
-            <RemotePanel />
-          </div>
-        </NTabPane>
         <NTabPane name="stash" tab="Stash">
           <div class="tab-content">
             <StashPanel />
@@ -79,6 +74,11 @@ async function handleRefresh() {
         <NTabPane name="terminal" tab="终端">
           <div class="tab-content">
             <Terminal />
+          </div>
+        </NTabPane>
+        <NTabPane name="remote" tab="远程">
+          <div class="tab-content">
+            <RemotePanel />
           </div>
         </NTabPane>
       </NTabs>
