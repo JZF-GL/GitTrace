@@ -216,11 +216,6 @@ export async function branchList(repoPath: string): Promise<any> {
         remoteBranches = raw.split('\n')
           .map(l => l.trim())
           .filter(l => l && !l.includes('HEAD'))
-          .map(l => {
-            // Remove remote prefix like "origin/"
-            const parts = l.split('/')
-            return parts.length > 1 ? parts.slice(1).join('/') : l
-          })
           .filter(l => l)
       }
     } catch (e) {
@@ -231,6 +226,36 @@ export async function branchList(repoPath: string): Promise<any> {
   } catch (e) {
     console.error('[GitService] branchList error:', e)
     return { local: [], current: '', remote: [] }
+  }
+}
+
+export async function getRemoteTrackingCommit(repoPath: string, branch: string): Promise<string | null> {
+  try {
+    const git = getGit(repoPath)
+    // 获取当前分支的远程跟踪分支
+    const raw = await git.raw(['rev-parse', '--verify', `@{upstream}`])
+    if (raw && raw.trim()) {
+      return raw.trim()
+    }
+    return null
+  } catch (e) {
+    // 没有设置远程跟踪分支
+    return null
+  }
+}
+
+export async function getRemoteCommits(repoPath: string): Promise<string[]> {
+  try {
+    const git = getGit(repoPath)
+    // 获取远程跟踪分支的所有 commit hashes
+    const raw = await git.raw(['log', '--oneline', '--format=%H', '@{upstream}'])
+    if (raw && raw.trim()) {
+      return raw.trim().split('\n').filter(h => h)
+    }
+    return []
+  } catch (e) {
+    // 没有设置远程跟踪分支或远程分支
+    return []
   }
 }
 
@@ -281,10 +306,17 @@ export async function stashList(repoPath: string): Promise<any> {
   }
 }
 
-export async function stashPush(repoPath: string, message?: string): Promise<any> {
+export async function stashPush(repoPath: string, message?: string, files?: string[]): Promise<any> {
   try {
     const git = getGit(repoPath)
-    await git.stash(message ? ['push', '--include-untracked', '-m', message] : ['push', '--include-untracked'])
+    const args = ['push', '--include-untracked']
+    if (message) {
+      args.push('-m', message)
+    }
+    if (files && files.length > 0) {
+      args.push('--', ...files)
+    }
+    await git.stash(args)
     return { success: true, message: '暂存成功' }
   } catch (e: any) {
     return { success: false, message: e.message || String(e) }

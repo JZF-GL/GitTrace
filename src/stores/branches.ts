@@ -33,8 +33,11 @@ export const useBranchesStore = defineStore('branches', () => {
   async function refreshAll(repoPath: string) {
     const commitsStore = useCommitsStore()
     const stagingStore = useStagingStore()
+    commitsStore.resetFilter()
+    // 先获取分支信息，确保 current.value 是最新的
+    await fetchBranches(repoPath)
+    // 再获取提交记录和工作区状态
     await Promise.all([
-      fetchBranches(repoPath),
       commitsStore.fetchGraphForCurrent(repoPath, current.value),
       stagingStore.fetchStatus(repoPath),
     ])

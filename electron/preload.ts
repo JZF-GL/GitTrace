@@ -21,13 +21,15 @@ const gitAPI = {
     console.log('[Preload] git:branch-list result:', JSON.stringify(result))
     return result
   },
+  remoteTrackingCommit: (repoPath: string, branch: string) => ipcRenderer.invoke('git:remote-tracking-commit', repoPath, branch),
+  remoteCommits: (repoPath: string) => ipcRenderer.invoke('git:remote-commits', repoPath),
   branchCreate: (repoPath: string, branchName: string, startPoint?: string) => ipcRenderer.invoke('git:branch-create', repoPath, branchName, startPoint),
   branchDelete: (repoPath: string, branchName: string, force?: boolean) => ipcRenderer.invoke('git:branch-delete', repoPath, branchName, force),
   checkout: (repoPath: string, branch: string) => ipcRenderer.invoke('git:checkout', repoPath, branch),
   merge: (repoPath: string, branch: string) => ipcRenderer.invoke('git:merge', repoPath, branch),
   rebase: (repoPath: string, branch: string) => ipcRenderer.invoke('git:rebase', repoPath, branch),
   stashList: (repoPath: string) => ipcRenderer.invoke('git:stash-list', repoPath),
-  stashPush: (repoPath: string, message?: string) => ipcRenderer.invoke('git:stash-push', repoPath, message),
+  stashPush: (repoPath: string, message?: string, files?: string[]) => ipcRenderer.invoke('git:stash-push', repoPath, message, files),
   stashPop: (repoPath: string, stashRef?: string) => ipcRenderer.invoke('git:stash-pop', repoPath, stashRef),
   stashDrop: (repoPath: string, stashRef: string) => ipcRenderer.invoke('git:stash-drop', repoPath, stashRef),
   stashShowFiles: (repoPath: string, stashRef: string) => ipcRenderer.invoke('git:stash-show-files', repoPath, stashRef),

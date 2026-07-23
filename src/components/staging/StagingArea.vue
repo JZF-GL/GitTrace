@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { NButton, NInput, NSpace, NEmpty, NSelect, useMessage, useDialog } from 'naive-ui'
+import { NButton, NInput, NSpace, NEmpty, NSelect, NModal, useMessage, useDialog } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useStagingStore, type FileChange } from '../../stores/staging'
 import { useCommitsStore } from '../../stores/commits'
@@ -21,6 +21,11 @@ const repo = computed(() => repoStore.currentRepo)
 const pushing = ref(false)
 const pulling = ref(false)
 const commitType = ref<string | null>(null)
+
+// Stash dialog
+const showStashDialog = ref(false)
+const stashSelectedFiles = ref<Set<string>>(new Set())
+const stashMessage = ref('')
 
 // Commit message history
 const commitHistory = ref<string[]>([])
@@ -300,6 +305,48 @@ async function handlePull() {
   }
 }
 
+function handleStash() {
+  stashSelectedFiles.value = new Set()
+  stashMessage.value = ''
+  showStashDialog.value = true
+}
+
+function toggleStashFile(path: string) {
+  const newSet = new Set(stashSelectedFiles.value)
+  if (newSet.has(path)) {
+    newSet.delete(path)
+  } else {
+    newSet.add(path)
+  }
+  stashSelectedFiles.value = newSet
+}
+
+function selectAllStashFiles() {
+  const allFiles = unstagedFiles.value.map(f => f.path)
+  stashSelectedFiles.value = new Set(allFiles)
+}
+
+function deselectAllStashFiles() {
+  stashSelectedFiles.value = new Set()
+}
+
+async function executeStash() {
+  if (!repo.value || stashSelectedFiles.value.size === 0) return
+  try {
+    const files = Array.from(stashSelectedFiles.value)
+    const result = await window.electronAPI.git.stashPush(repo.value.path, stashMessage.value || undefined, files)
+    if (result.success) {
+      message.success('已暂存更改')
+      showStashDialog.value = false
+      await stagingStore.fetchStatus(repo.value.path)
+    } else {
+      message.error('暂存失败: ' + result.message)
+    }
+  } catch (e: any) {
+    message.error('暂存失败: ' + (e.message || String(e)))
+  }
+}
+
 function handleSelectFile(path: string, staged: boolean) {
   selectedFile.value = path
   selectedFileStaged.value = staged
@@ -365,6 +412,7 @@ function getStatusClass(file: FileChange): string {
           <NButton size="small" :loading="pushing" :disabled="pulling" @click="handlePush">
             推送 {{ stagingStore.ahead > 0 ? '(' + stagingStore.ahead + ')' : '' }}
           </NButton>
+          <NButton size="small" @click="handleStash">Stash</NButton>
         </div>
       </div>
 
@@ -500,6 +548,44 @@ function getStatusClass(file: FileChange): string {
       </div>
     </div>
   </div>
+
+  <!-- Stash Dialog -->
+  <NModal v-model:show="showStashDialog" preset="card" title="Stash 更改" style="width: 500px; max-height: 600px;">
+    <div class="stash-dialog-content">
+      <NInput v-model:value="stashMessage" placeholder="Stash 信息（可选）" style="margin-bottom: 12px;" />
+      <div class="stash-actions">
+        <NButton size="small" @click="selectAllStashFiles">全选</NButton>
+        <NButton size="small" @click="deselectAllStashFiles">取消全选</NButton>
+        <span class="stash-count">已选 {{ stashSelectedFiles.size }} / {{ unstagedFiles.length }} 个文件</span>
+      </div>
+      <div class="stash-file-list">
+        <div
+          v-for="file in unstagedFiles"
+          :key="'stash-' + file.path"
+          class="stash-file-item"
+          :class="{ selected: stashSelectedFiles.has(file.path) }"
+          @click="toggleStashFile(file.path)"
+        >
+          <input
+            type="checkbox"
+            :checked="stashSelectedFiles.has(file.path)"
+            @click.stop
+            @change="toggleStashFile(file.path)"
+          />
+          <span class="file-status" :class="getStatusClass(file)">{{ getStatusSymbol(file) }}</span>
+          <span class="file-path">{{ file.path }}</span>
+        </div>
+      </div>
+    </div>
+    <template #footer>
+      <NSpace justify="end">
+        <NButton @click="showStashDialog = false">取消</NButton>
+        <NButton type="primary" :disabled="stashSelectedFiles.size === 0" @click="executeStash">
+          Stash
+        </NButton>
+      </NSpace>
+    </template>
+  </NModal>
 </template>
 
 <style scoped>
@@ -883,5 +969,51 @@ function getStatusClass(file: FileChange): string {
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
   flex-shrink: 0;
+}
+
+.stash-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stash-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stash-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.stash-file-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.stash-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.stash-file-item:hover {
+  background: var(--bg-hover);
+}
+
+.stash-file-item.selected {
+  background: rgba(88, 166, 255, 0.1);
+}
+
+.stash-file-item input[type="checkbox"] {
+  cursor: pointer;
 }
 </style>

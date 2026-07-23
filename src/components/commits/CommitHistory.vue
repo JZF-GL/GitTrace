@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, h } from 'vue'
 import { NInput, NEmpty, NSpin, NButton, NSpace, NDropdown, NSelect, useMessage } from 'naive-ui'
 import { useCommitsStore } from '../../stores/commits'
 import { useRepositoryStore } from '../../stores/repository'
@@ -28,11 +28,20 @@ const branchOptions = computed(() => {
     { label: '当前分支', value: null },
     { label: '所有分支', value: '__all__' },
   ]
+  // 本地分支
   for (const b of branchesStore.branches) {
     options.push({ label: b.name, value: b.name })
   }
+  // 远程分支
+  for (const rb of branchesStore.remoteBranches) {
+    options.push({ label: rb, value: rb })
+  }
   return options
 })
+
+function renderBranchLabel(option: { label: string; value: string | null }) {
+  return h('span', { title: option.label }, option.label)
+}
 
 const filteredCommits = computed(() => {
   if (!searchText.value) return commits.value
@@ -106,6 +115,7 @@ async function handleAction(key: string) {
         <NSelect
           v-model:value="commitsStore.branchFilter"
           :options="branchOptions"
+          :render-label="renderBranchLabel"
           size="small"
           style="width: 140px"
           placeholder="分支筛选"

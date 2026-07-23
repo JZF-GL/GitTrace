@@ -114,7 +114,11 @@ function formatDate(dateStr: string): string {
         @click="emit('select', commit)"
       >
         <div class="commit-info">
-          <div class="commit-message">{{ commit.message }}</div>
+          <div class="commit-message">
+            <span v-if="commit.pushed === true" class="push-status pushed" title="已推送">&#10003;</span>
+            <span v-else-if="commit.pushed === false" class="push-status unpushed" title="未推送">&#8644;</span>
+            {{ commit.message }}
+          </div>
           <div class="commit-meta">
             <span class="commit-hash">{{ commit.shortHash }}</span>
             <span class="commit-author">{{ commit.author }}</span>
@@ -201,5 +205,19 @@ function formatDate(dateStr: string): string {
   font-size: 11px;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+
+.push-status {
+  font-size: 10px;
+  margin-right: 4px;
+  font-weight: bold;
+}
+
+.push-status.pushed {
+  color: var(--accent-green);
+}
+
+.push-status.unpushed {
+  color: var(--accent-orange);
 }
 </style>

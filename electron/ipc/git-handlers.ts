@@ -68,6 +68,14 @@ export function registerGitHandlers() {
     return result
   })
 
+  ipcMain.handle('git:remote-tracking-commit', async (_event, repoPath: string, branch: string) => {
+    return gitService.getRemoteTrackingCommit(repoPath, branch)
+  })
+
+  ipcMain.handle('git:remote-commits', async (_event, repoPath: string) => {
+    return gitService.getRemoteCommits(repoPath)
+  })
+
   ipcMain.handle('git:branch-create', async (_event, repoPath: string, branchName: string, startPoint?: string) => {
     return gitService.branchCreate(repoPath, branchName, startPoint)
   })
@@ -88,8 +96,8 @@ export function registerGitHandlers() {
     return gitService.stashList(repoPath)
   })
 
-  ipcMain.handle('git:stash-push', async (_event, repoPath: string, message?: string) => {
-    return gitService.stashPush(repoPath, message)
+  ipcMain.handle('git:stash-push', async (_event, repoPath: string, message?: string, files?: string[]) => {
+    return gitService.stashPush(repoPath, message, files)
   })
 
   ipcMain.handle('git:stash-pop', async (_event, repoPath: string, stashRef?: string) => {
