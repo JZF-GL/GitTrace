@@ -5,11 +5,13 @@ import { useRepositoryStore } from '../../stores/repository'
 import { useBranchesStore } from '../../stores/branches'
 import { useStagingStore } from '../../stores/staging'
 import { useCommitsStore } from '../../stores/commits'
+import { useAppStore } from '../../stores/app'
 
 const repoStore = useRepositoryStore()
 const branchesStore = useBranchesStore()
 const stagingStore = useStagingStore()
 const commitsStore = useCommitsStore()
+const appStore = useAppStore()
 const message = useMessage()
 
 const showNewBranch = ref(false)
@@ -91,8 +93,8 @@ async function handleDeleteBranch(name: string) {
 
 function showContextMenu(e: MouseEvent, branch: string, isCurrent: boolean, isRemote: boolean = false) {
   e.preventDefault()
-  // 当前分支不需要右键菜单
-  if (isCurrent) return
+  // 远程分支没有右键菜单
+  if (isRemote) return
   contextMenu.value = {
     show: true,
     x: e.clientX,
@@ -131,6 +133,9 @@ async function handleContextAction(action: string) {
     case 'delete':
       await handleDeleteBranch(branch)
       break
+    case 'sync':
+      await handleSyncBranch(branch)
+      break
   }
 }
 
@@ -139,9 +144,50 @@ async function handleMergeBranch(branch: string) {
   const result = await branchesStore.merge(currentRepo.value.path, branch)
   if (result?.success) {
     message.success(result.message || '合并成功')
-    await branchesStore.refreshAll(currentRepo.value.path)
+    await Promise.all([
+      branchesStore.fetchBranches(currentRepo.value.path),
+      stagingStore.fetchStatus(currentRepo.value.path),
+      commitsStore.fetchGraphForCurrent(currentRepo.value.path, branchesStore.current),
+    ])
+  } else if (result?.conflict) {
+    message.warning(result.message || '合并有冲突，请在工作区解决')
+    appStore.setActiveTab('staging')
+    await stagingStore.fetchStatus(currentRepo.value.path)
   } else {
     message.error('合并失败: ' + (result?.message || '未知错误'))
+  }
+}
+
+async function handleSyncBranch(branch: string) {
+  if (!currentRepo.value) return
+  message.loading('正在同步...')
+  try {
+    // 先拉取
+    const pullResult = await window.electronAPI.git.pull(currentRepo.value.path, undefined, branch)
+    if (pullResult?.conflict) {
+      message.warning('拉取有冲突，请在工作区解决')
+      appStore.setActiveTab('staging')
+      await stagingStore.fetchStatus(currentRepo.value.path)
+      return
+    }
+    if (!pullResult?.success) {
+      message.error('拉取失败: ' + (pullResult?.message || '未知错误'))
+      return
+    }
+    // 再推送
+    const pushResult = await window.electronAPI.git.push(currentRepo.value.path, undefined, branch)
+    if (!pushResult?.success) {
+      message.error('推送失败: ' + (pushResult?.message || '未知错误'))
+      return
+    }
+    message.success(`分支 ${branch} 同步成功`)
+    await Promise.all([
+      branchesStore.fetchBranches(currentRepo.value.path),
+      stagingStore.fetchStatus(currentRepo.value.path),
+      commitsStore.fetchGraphForCurrent(currentRepo.value.path, branchesStore.current),
+    ])
+  } catch (e: any) {
+    message.error('同步失败: ' + (e.message || String(e)))
   }
 }
 </script>
@@ -229,10 +275,13 @@ async function handleMergeBranch(branch: string) {
             <div v-if="!contextMenu.isCurrent" class="context-menu-item" @click="handleContextAction('checkout')">
               切换到此分支
             </div>
+            <div class="context-menu-item" @click="handleContextAction('sync')">
+              同步
+            </div>
             <div v-if="!contextMenu.isCurrent" class="context-menu-item" @click="handleContextAction('merge')">
               合并到当前分支
             </div>
-            <div v-if="!contextMenu.isCurrent && !contextMenu.isRemote" class="context-menu-item danger" @click="handleContextAction('delete')">
+            <div v-if="!contextMenu.isCurrent" class="context-menu-item danger" @click="handleContextAction('delete')">
               删除分支
             </div>
           </div>

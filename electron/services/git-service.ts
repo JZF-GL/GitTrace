@@ -9,6 +9,19 @@ function getGit(repoPath: string): SimpleGit {
   return gitInstances.get(repoPath)!
 }
 
+export async function execCommand(repoPath: string, command: string): Promise<{ stdout: string; stderr: string }> {
+  try {
+    const git = getGit(repoPath)
+    // 解析命令：git commit -m 'test' -> ['commit', '-m', 'test']
+    // 匹配引号内的内容作为一个整体
+    const parts = command.replace(/^git\s+/, '').match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || []
+    const result = await git.raw(parts)
+    return { stdout: result, stderr: '' }
+  } catch (e: any) {
+    return { stdout: e.stdout || '', stderr: e.stderr || e.message || String(e) }
+  }
+}
+
 export async function getStatus(repoPath: string): Promise<any> {
   const status = await getGit(repoPath).status()
   return {
@@ -292,8 +305,8 @@ export async function checkout(repoPath: string, branch: string): Promise<any> {
 export async function merge(repoPath: string, branch: string): Promise<any> {
   try {
     const git = getGit(repoPath)
-    const result = await git.merge([branch])
-    return { success: true, message: result.summary }
+    await git.merge([branch])
+    return { success: true, message: `已将 ${branch} 合并到当前分支` }
   } catch (e: any) {
     // 检查是否是合并冲突
     const status = await git.status()

@@ -206,4 +206,9 @@ export function registerGitHandlers() {
   ipcMain.handle('git:search-commits', async (_event, repoPath: string, query: string, options?: any) => {
     return gitService.searchCommits(repoPath, query, options)
   })
+
+  // Terminal
+  ipcMain.handle('git:exec', async (_event, repoPath: string, command: string) => {
+    return gitService.execCommand(repoPath, command)
+  })
 }

@@ -1,21 +1,27 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { NTabs, NTabPane } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useCommitsStore } from '../../stores/commits'
 import { useStagingStore } from '../../stores/staging'
 import { useBranchesStore } from '../../stores/branches'
+import { useAppStore } from '../../stores/app'
 import CommitHistory from '../commits/CommitHistory.vue'
 import StagingArea from '../staging/StagingArea.vue'
 import RemotePanel from '../remote/RemotePanel.vue'
 import StashPanel from '../stash/StashPanel.vue'
+import Terminal from '../terminal/Terminal.vue'
 
 const repoStore = useRepositoryStore()
 const commitsStore = useCommitsStore()
 const stagingStore = useStagingStore()
 const branchesStore = useBranchesStore()
+const appStore = useAppStore()
 
-const activeTab = ref('history')
+const activeTab = computed({
+  get: () => appStore.activeTab,
+  set: (val) => appStore.setActiveTab(val),
+})
 
 const repo = computed(() => repoStore.currentRepo)
 const fileCount = computed(() => stagingStore.files.length)
@@ -68,6 +74,11 @@ async function handleRefresh() {
         <NTabPane name="stash" tab="Stash">
           <div class="tab-content">
             <StashPanel />
+          </div>
+        </NTabPane>
+        <NTabPane name="terminal" tab="终端">
+          <div class="tab-content">
+            <Terminal />
           </div>
         </NTabPane>
       </NTabs>
