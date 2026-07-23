@@ -63,11 +63,16 @@ export const useBranchesStore = defineStore('branches', () => {
     return result
   }
 
+  async function merge(repoPath: string, branch: string) {
+    const result = await window.electronAPI.git.merge(repoPath, branch)
+    return result
+  }
+
   function clear() {
     branches.value = []
     remoteBranches.value = []
     current.value = ''
   }
 
-  return { branches, remoteBranches, current, loading, fetchBranches, refreshAll, createBranch, deleteBranch, checkout, clear }
+  return { branches, remoteBranches, current, loading, fetchBranches, refreshAll, createBranch, deleteBranch, checkout, merge, clear }
 })

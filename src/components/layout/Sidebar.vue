@@ -1,17 +1,29 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { NButton, NInput, NModal, useMessage } from 'naive-ui'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { NButton, NInput, NModal, NDropdown, useMessage } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useBranchesStore } from '../../stores/branches'
 import { useStagingStore } from '../../stores/staging'
+import { useCommitsStore } from '../../stores/commits'
 
 const repoStore = useRepositoryStore()
 const branchesStore = useBranchesStore()
 const stagingStore = useStagingStore()
+const commitsStore = useCommitsStore()
 const message = useMessage()
 
 const showNewBranch = ref(false)
 const newBranchName = ref('')
+
+// Context menu state
+const contextMenu = ref({
+  show: false,
+  x: 0,
+  y: 0,
+  branch: '' as string,
+  isCurrent: false,
+  isRemote: false,
+})
 
 const currentRepo = computed(() => repoStore.currentRepo)
 const branches = computed(() => branchesStore.branches)
@@ -76,6 +88,62 @@ async function handleDeleteBranch(name: string) {
     message.error('删除失败: ' + (result?.message || '未知错误'))
   }
 }
+
+function showContextMenu(e: MouseEvent, branch: string, isCurrent: boolean, isRemote: boolean = false) {
+  e.preventDefault()
+  // 当前分支不需要右键菜单
+  if (isCurrent) return
+  contextMenu.value = {
+    show: true,
+    x: e.clientX,
+    y: e.clientY,
+    branch,
+    isCurrent,
+    isRemote,
+  }
+}
+
+function hideContextMenu() {
+  contextMenu.value.show = false
+}
+
+onMounted(() => {
+  document.addEventListener('click', hideContextMenu)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', hideContextMenu)
+})
+
+async function handleContextAction(action: string) {
+  const { branch, isRemote } = contextMenu.value
+  hideContextMenu()
+
+  if (!currentRepo.value) return
+
+  switch (action) {
+    case 'checkout':
+      await handleCheckout(branch)
+      break
+    case 'merge':
+      await handleMergeBranch(branch)
+      break
+    case 'delete':
+      await handleDeleteBranch(branch)
+      break
+  }
+}
+
+async function handleMergeBranch(branch: string) {
+  if (!currentRepo.value) return
+  const result = await branchesStore.merge(currentRepo.value.path, branch)
+  if (result?.success) {
+    message.success(result.message || '合并成功')
+    await branchesStore.refreshAll(currentRepo.value.path)
+  } else {
+    message.error('合并失败: ' + (result?.message || '未知错误'))
+  }
+}
 </script>
 
 <template>
@@ -126,18 +194,13 @@ async function handleDeleteBranch(name: string) {
             :key="branch.name"
             class="branch-item"
             :class="{ current: branch.current }"
-            @click="handleCheckout(branch.name)"
+            @dblclick="handleCheckout(branch.name)"
+            @contextmenu="showContextMenu($event, branch.name, branch.current)"
           >
             <span class="branch-icon local">&#128204;</span>
             <span class="branch-name">{{ branch.name }}</span>
             <span v-if="branch.current && stagingStore.ahead > 0" class="branch-badge ahead">&#8593;{{ stagingStore.ahead }}</span>
             <span v-if="branch.current && stagingStore.behind > 0" class="branch-badge behind">&#8595;{{ stagingStore.behind }}</span>
-            <button
-              v-if="!branch.current"
-              class="remove-btn"
-              @click.stop="handleDeleteBranch(branch.name)"
-              title="删除分支"
-            >&#10005;</button>
           </div>
         </div>
 
@@ -148,11 +211,32 @@ async function handleDeleteBranch(name: string) {
             v-for="remote in remoteBranches"
             :key="remote"
             class="branch-item remote"
+            @dblclick="handleCheckout(remote)"
+            @contextmenu="showContextMenu($event, remote, false, true)"
           >
             <span class="branch-icon remote">&#128279;</span>
             <span class="branch-name">{{ formatRemoteBranch(remote) }}</span>
           </div>
         </div>
+
+        <!-- Context menu -->
+        <Teleport to="body">
+          <div
+            v-if="contextMenu.show"
+            class="context-menu"
+            :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+          >
+            <div v-if="!contextMenu.isCurrent" class="context-menu-item" @click="handleContextAction('checkout')">
+              切换到此分支
+            </div>
+            <div v-if="!contextMenu.isCurrent" class="context-menu-item" @click="handleContextAction('merge')">
+              合并到当前分支
+            </div>
+            <div v-if="!contextMenu.isCurrent && !contextMenu.isRemote" class="context-menu-item danger" @click="handleContextAction('delete')">
+              删除分支
+            </div>
+          </div>
+        </Teleport>
 
         <div v-if="branches.length === 0 && remoteBranches.length === 0" class="no-branches">暂无分支</div>
       </div>
@@ -402,5 +486,36 @@ async function handleDeleteBranch(name: string) {
   padding: 24px;
   border-radius: 8px;
   min-width: 300px;
+}
+
+.context-menu {
+  position: fixed;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 160px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+}
+
+.context-menu-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background 0.1s;
+}
+
+.context-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.context-menu-item.danger {
+  color: var(--accent-red);
+}
+
+.context-menu-item.danger:hover {
+  background: rgba(248, 81, 73, 0.15);
 }
 </style>

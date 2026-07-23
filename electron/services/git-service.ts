@@ -290,8 +290,23 @@ export async function checkout(repoPath: string, branch: string): Promise<any> {
 }
 
 export async function merge(repoPath: string, branch: string): Promise<any> {
-  const git = getGit(repoPath)
-  return git.merge([branch])
+  try {
+    const git = getGit(repoPath)
+    const result = await git.merge([branch])
+    return { success: true, message: result.summary }
+  } catch (e: any) {
+    // 检查是否是合并冲突
+    const status = await git.status()
+    if (status.conflicted.length > 0) {
+      return {
+        success: false,
+        conflict: true,
+        message: `合并冲突: ${status.conflicted.length} 个文件有冲突`,
+        files: status.conflicted,
+      }
+    }
+    return { success: false, message: e.message || String(e) }
+  }
 }
 
 export async function stashList(repoPath: string): Promise<any> {

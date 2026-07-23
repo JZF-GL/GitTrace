@@ -259,7 +259,10 @@ async function handleCommit() {
     await window.electronAPI.git.commit(repo.value.path, msg)
     stagingStore.commitMessage = ''
     commitType.value = null
-    await stagingStore.fetchStatus(repo.value.path)
+    await Promise.all([
+      stagingStore.fetchStatus(repo.value.path),
+      commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
+    ])
     message.success('提交成功')
   } catch (e: any) {
     message.error('提交失败: ' + (e.message || String(e)))
@@ -273,7 +276,10 @@ async function handlePush() {
     const result = await window.electronAPI.git.push(repo.value.path)
     if (result.success) {
       message.success('推送成功')
-      await stagingStore.fetchStatus(repo.value.path)
+      await Promise.all([
+        stagingStore.fetchStatus(repo.value.path),
+        commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
+      ])
     } else {
       message.error('推送失败: ' + result.message)
     }
