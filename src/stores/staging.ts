@@ -16,12 +16,26 @@ export const useStagingStore = defineStore('staging', () => {
   const ahead = ref(0)
   const behind = ref(0)
 
+  // 判断是否是冲突状态
+  function isConflict(index: string, workingDir: string): boolean {
+    // U = unmerged (冲突)
+    // AA = both added (两边都添加)
+    // DD = both deleted (两边都删除)
+    // AU = added by us (我们添加的)
+    // UA = added by them (他们添加的)
+    // DU = deleted by us (我们删除的)
+    // UD = deleted by them (他们删除的)
+    return index === 'U' || workingDir === 'U' ||
+           (index === 'A' && workingDir === 'A') ||
+           (index === 'D' && workingDir === 'D')
+  }
+
   const stagedFiles = computed(() =>
-    files.value.filter(f => f.index && f.index !== ' ' && f.index !== 'U' && f.index !== '?' && f.workingDir !== 'U')
+    files.value.filter(f => !isConflict(f.index, f.workingDir) && f.index && f.index !== ' ' && f.index !== 'U' && f.index !== '?' && f.workingDir !== 'U')
   )
 
   const unstagedFiles = computed(() =>
-    files.value.filter(f => f.index !== '?' && f.index !== 'U' && f.workingDir && f.workingDir !== ' ' && f.workingDir !== 'U')
+    files.value.filter(f => !isConflict(f.index, f.workingDir) && f.index !== '?' && f.index !== 'U' && f.workingDir && f.workingDir !== ' ' && f.workingDir !== 'U')
   )
 
   const untrackedFiles = computed(() =>
@@ -29,7 +43,7 @@ export const useStagingStore = defineStore('staging', () => {
   )
 
   const conflictedFiles = computed(() =>
-    files.value.filter(f => f.index === 'U' || f.workingDir === 'U')
+    files.value.filter(f => isConflict(f.index, f.workingDir))
   )
 
   async function fetchStatus(repoPath: string) {

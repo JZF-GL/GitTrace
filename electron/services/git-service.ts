@@ -92,6 +92,32 @@ export async function getLogGraph(repoPath: string, maxCount: number = 200, bran
 export async function getDiff(repoPath: string, file?: string): Promise<string> {
   const git = getGit(repoPath)
   if (file) {
+    // 检查是否是未跟踪的文件
+    const status = await git.status()
+    const isUntracked = status.not_added.includes(file) || status.created.includes(file)
+    if (isUntracked) {
+      // 对于未跟踪的文件，读取文件内容并生成 diff 格式
+      const fs = require('fs')
+      const path = require('path')
+      const fullPath = path.join(repoPath, file)
+      try {
+        const content = fs.readFileSync(fullPath, 'utf-8')
+        const lines = content.split('\n')
+        // 生成 diff 格式
+        let result = `diff --git a/${file} b/${file}\n`
+        result += `new file mode 100644\n`
+        result += `index 0000000..0000000\n`
+        result += `--- /dev/null\n`
+        result += `+++ b/${file}\n`
+        result += `@@ -0,0 +1,${lines.length} @@\n`
+        lines.forEach(line => {
+          result += `+${line}\n`
+        })
+        return result
+      } catch (e) {
+        return ''
+      }
+    }
     return git.diff([file])
   }
   return git.diff()
