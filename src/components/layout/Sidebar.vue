@@ -93,8 +93,6 @@ async function handleDeleteBranch(name: string) {
 
 function showContextMenu(e: MouseEvent, branch: string, isCurrent: boolean, isRemote: boolean = false) {
   e.preventDefault()
-  // 远程分支没有右键菜单
-  if (isRemote) return
   contextMenu.value = {
     show: true,
     x: e.clientX,
@@ -136,6 +134,40 @@ async function handleContextAction(action: string) {
     case 'sync':
       await handleSyncBranch(branch)
       break
+    case 'pull-remote':
+      await handlePullRemote(branch)
+      break
+  }
+}
+
+async function handlePullRemote(remoteBranch: string) {
+  if (!currentRepo.value) return
+  // remoteBranch 格式如 "origin/dev"，解析出 remote 名称
+  const parts = remoteBranch.split('/')
+  const remote = parts[0]
+  const branch = parts.slice(1).join('/')
+
+  message.loading('正在合并远程分支...')
+  try {
+    const result = await window.electronAPI.git.pull(currentRepo.value.path, remote, branch)
+    if (result?.conflict) {
+      message.warning('合并有冲突，请在工作区解决')
+      // 自动填充合并提交信息
+      stagingStore.commitMessage = `Merge branch '${branchesStore.current}' of ${currentRepo.value.path} into ${branchesStore.current}`
+      appStore.setActiveTab('staging')
+      await stagingStore.fetchStatus(currentRepo.value.path)
+    } else if (result?.success) {
+      message.success(`已将 ${remoteBranch} 合并到当前分支`)
+    } else {
+      message.error('合并失败: ' + (result?.message || '未知错误'))
+    }
+    await Promise.all([
+      branchesStore.fetchBranches(currentRepo.value.path),
+      commitsStore.fetchGraphForCurrent(currentRepo.value.path, branchesStore.current),
+      stagingStore.fetchStatus(currentRepo.value.path),
+    ])
+  } catch (e: any) {
+    message.error('合并失败: ' + (e.message || String(e)))
   }
 }
 
@@ -151,6 +183,9 @@ async function handleMergeBranch(branch: string) {
     ])
   } else if (result?.conflict) {
     message.warning(result.message || '合并有冲突，请在工作区解决')
+    // 自动填充合并提交信息
+    const repoName = currentRepo.value.name
+    stagingStore.commitMessage = `Merge branch '${branchesStore.current}' into ${branch}`
     appStore.setActiveTab('staging')
     await stagingStore.fetchStatus(currentRepo.value.path)
   } else {
@@ -245,8 +280,8 @@ async function handleSyncBranch(branch: string) {
           >
             <span class="branch-icon local">&#128204;</span>
             <span class="branch-name">{{ branch.name }}</span>
-            <span v-if="branch.current && stagingStore.ahead > 0" class="branch-badge ahead">&#8593;{{ stagingStore.ahead }}</span>
-            <span v-if="branch.current && stagingStore.behind > 0" class="branch-badge behind">&#8595;{{ stagingStore.behind }}</span>
+            <span v-if="branch.ahead && branch.ahead > 0" class="branch-badge ahead">&#8593;{{ branch.ahead }}</span>
+            <span v-if="branch.behind && branch.behind > 0" class="branch-badge behind">&#8595;{{ branch.behind }}</span>
           </div>
         </div>
 
@@ -257,7 +292,6 @@ async function handleSyncBranch(branch: string) {
             v-for="remote in remoteBranches"
             :key="remote"
             class="branch-item remote"
-            @dblclick="handleCheckout(remote)"
             @contextmenu="showContextMenu($event, remote, false, true)"
           >
             <span class="branch-icon remote">&#128279;</span>
@@ -272,18 +306,27 @@ async function handleSyncBranch(branch: string) {
             class="context-menu"
             :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
           >
-            <div v-if="!contextMenu.isCurrent" class="context-menu-item" @click="handleContextAction('checkout')">
-              切换到此分支
-            </div>
-            <div class="context-menu-item" @click="handleContextAction('sync')">
-              同步
-            </div>
-            <div v-if="!contextMenu.isCurrent" class="context-menu-item" @click="handleContextAction('merge')">
-              合并到当前分支
-            </div>
-            <div v-if="!contextMenu.isCurrent" class="context-menu-item danger" @click="handleContextAction('delete')">
-              删除分支
-            </div>
+            <!-- 本地分支菜单 -->
+            <template v-if="!contextMenu.isRemote">
+              <div v-if="!contextMenu.isCurrent" class="context-menu-item" @click="handleContextAction('checkout')">
+                切换到此分支
+              </div>
+              <div class="context-menu-item" @click="handleContextAction('sync')">
+                同步
+              </div>
+              <div v-if="!contextMenu.isCurrent" class="context-menu-item" @click="handleContextAction('merge')">
+                合并到当前分支
+              </div>
+              <div v-if="!contextMenu.isCurrent" class="context-menu-item danger" @click="handleContextAction('delete')">
+                删除分支
+              </div>
+            </template>
+            <!-- 远程分支菜单 -->
+            <template v-else>
+              <div class="context-menu-item" @click="handleContextAction('pull-remote')">
+                合并远程到当前分支
+              </div>
+            </template>
           </div>
         </Teleport>
 

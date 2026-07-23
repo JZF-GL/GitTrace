@@ -17,6 +17,7 @@ export interface ElectronAPI {
     branchList: (repoPath: string) => Promise<any>
     remoteTrackingCommit: (repoPath: string, branch: string) => Promise<string | null>
     remoteCommits: (repoPath: string) => Promise<string[]>
+    branchesAheadBehind: (repoPath: string) => Promise<Record<string, { ahead: number; behind: number }>>
     exec: (repoPath: string, command: string) => Promise<{ stdout: string; stderr: string }>
     branchCreate: (repoPath: string, branchName: string, startPoint?: string) => Promise<any>
     branchDelete: (repoPath: string, branchName: string, force?: boolean) => Promise<any>

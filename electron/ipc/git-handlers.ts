@@ -76,6 +76,10 @@ export function registerGitHandlers() {
     return gitService.getRemoteCommits(repoPath)
   })
 
+  ipcMain.handle('git:branches-ahead-behind', async (_event, repoPath: string) => {
+    return gitService.getBranchesAheadBehind(repoPath)
+  })
+
   ipcMain.handle('git:branch-create', async (_event, repoPath: string, branchName: string, startPoint?: string) => {
     return gitService.branchCreate(repoPath, branchName, startPoint)
   })

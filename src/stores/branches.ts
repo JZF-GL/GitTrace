@@ -6,6 +6,8 @@ import { useStagingStore } from './staging'
 export interface Branch {
   name: string
   current: boolean
+  ahead?: number
+  behind?: number
 }
 
 export const useBranchesStore = defineStore('branches', () => {
@@ -22,6 +24,19 @@ export const useBranchesStore = defineStore('branches', () => {
       branches.value = result.local || []
       remoteBranches.value = result.remote || []
       current.value = result.current || ''
+
+      // 获取所有分支的 ahead/behind 信息
+      try {
+        const aheadBehind = await window.electronAPI.git.branchesAheadBehind(repoPath)
+        branches.value = branches.value.map(b => ({
+          ...b,
+          ahead: aheadBehind[b.name]?.ahead || 0,
+          behind: aheadBehind[b.name]?.behind || 0,
+        }))
+      } catch {
+        // 忽略错误
+      }
+
       console.log('[BranchStore] branches set to:', branches.value)
     } catch (e) {
       console.error('[BranchStore] fetchBranches error:', e)

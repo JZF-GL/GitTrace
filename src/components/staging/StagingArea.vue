@@ -301,6 +301,8 @@ async function handlePull() {
       ])
     } else if (result.conflict) {
       message.warning('拉取有冲突，请解决')
+      // 自动填充合并提交信息
+      stagingStore.commitMessage = `Merge branch '${branchesStore.current}' of ${repo.value.name} into ${branchesStore.current}`
       await stagingStore.fetchStatus(repo.value.path)
       showConflictResolver.value = true
     } else {

@@ -23,6 +23,7 @@ const gitAPI = {
   },
   remoteTrackingCommit: (repoPath: string, branch: string) => ipcRenderer.invoke('git:remote-tracking-commit', repoPath, branch),
   remoteCommits: (repoPath: string) => ipcRenderer.invoke('git:remote-commits', repoPath),
+  branchesAheadBehind: (repoPath: string) => ipcRenderer.invoke('git:branches-ahead-behind', repoPath),
   branchCreate: (repoPath: string, branchName: string, startPoint?: string) => ipcRenderer.invoke('git:branch-create', repoPath, branchName, startPoint),
   branchDelete: (repoPath: string, branchName: string, force?: boolean) => ipcRenderer.invoke('git:branch-delete', repoPath, branchName, force),
   checkout: (repoPath: string, branch: string) => ipcRenderer.invoke('git:checkout', repoPath, branch),

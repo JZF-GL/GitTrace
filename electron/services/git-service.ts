@@ -293,8 +293,51 @@ export async function getRemoteCommits(repoPath: string): Promise<string[]> {
     }
     return []
   } catch (e) {
-    // 没有设置远程跟踪分支或远程分支
     return []
+  }
+}
+
+export async function getBranchesAheadBehind(repoPath: string): Promise<Record<string, { ahead: number; behind: number }>> {
+  try {
+    const git = getGit(repoPath)
+    const result: Record<string, { ahead: number; behind: number }> = {}
+
+    // 获取所有本地分支
+    const branches = await git.branchLocal()
+    for (const branch of Object.keys(branches.branches)) {
+      try {
+        // 尝试获取远程跟踪分支
+        const upstream = await git.raw(['config', '--get', `branch.${branch}.remote`])
+        const mergeRef = await git.raw(['config', '--get', `branch.${branch}.merge`])
+
+        if (upstream && mergeRef) {
+          const remoteName = upstream.trim()
+          const remoteBranch = mergeRef.trim().replace('refs/heads/', '')
+          const remoteRef = `${remoteName}/${remoteBranch}`
+
+          // 检查远程分支是否存在
+          try {
+            await git.raw(['rev-parse', '--verify', remoteRef])
+            // 使用 git rev-list --left-right --count 来获取 ahead/behind
+            const raw = await git.raw(['rev-list', '--left-right', '--count', `${branch}...${remoteRef}`])
+            const [ahead, behind] = raw.trim().split(/\s+/).map(Number)
+            result[branch] = { ahead: ahead || 0, behind: behind || 0 }
+          } catch {
+            // 远程分支不存在
+            result[branch] = { ahead: 0, behind: 0 }
+          }
+        } else {
+          // 没有设置远程跟踪分支
+          result[branch] = { ahead: 0, behind: 0 }
+        }
+      } catch {
+        result[branch] = { ahead: 0, behind: 0 }
+      }
+    }
+
+    return result
+  } catch (e) {
+    return {}
   }
 }
 
@@ -335,6 +378,7 @@ export async function merge(repoPath: string, branch: string): Promise<any> {
     return { success: true, message: `已将 ${branch} 合并到当前分支` }
   } catch (e: any) {
     // 检查是否是合并冲突
+    const git = getGit(repoPath)
     const status = await git.status()
     if (status.conflicted.length > 0) {
       return {
