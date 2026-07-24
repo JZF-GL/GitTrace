@@ -727,8 +727,10 @@ export async function getCommitFiles(repoPath: string, commitHash: string): Prom
       const parts = l.trim().split('\t')
       return { status: parts[0], path: parts[1] }
     }).filter(f => f.path)
-    console.log('[GitService] parsed files:', files)
-    return { files }
+    // 去重：合并提交可能导致文件重复出现
+    const uniqueFiles = files.filter((f, i, arr) => arr.findIndex(x => x.path === f.path) === i)
+    console.log('[GitService] parsed files:', uniqueFiles)
+    return { files: uniqueFiles }
   } catch (e: any) {
     console.error('[GitService] getCommitFiles error:', e)
     return { files: [], error: e.message }
