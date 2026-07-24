@@ -290,6 +290,34 @@ async function handlePush() {
   }
 }
 
+async function handleForcePush() {
+  if (!repo.value || pushing.value) return
+  dialog.warning({
+    title: '强制推送',
+    content: '确定要强制推送吗？这会覆盖远程分支的提交历史。',
+    positiveText: '确定推送',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      pushing.value = true
+      try {
+        const result = await window.electronAPI.git.push(repo.value!.path, undefined, undefined, true)
+        if (result.success) {
+          message.success('强制推送成功')
+          await Promise.all([
+            stagingStore.fetchStatus(repo.value!.path),
+            commitsStore.fetchGraphForCurrent(repo.value!.path, branchesStore.current),
+            branchesStore.fetchBranches(repo.value!.path),
+          ])
+        } else {
+          message.error('推送失败: ' + result.message)
+        }
+      } finally {
+        pushing.value = false
+      }
+    },
+  })
+}
+
 async function handlePull() {
   if (!repo.value || pulling.value) return
   pulling.value = true
@@ -425,6 +453,9 @@ function getStatusClass(file: FileChange): string {
           <NButton size="small" :loading="pulling" :disabled="pushing" @click="handlePull">拉取</NButton>
           <NButton size="small" :loading="pushing" :disabled="pulling" @click="handlePush">
             推送 {{ stagingStore.ahead > 0 ? '(' + stagingStore.ahead + ')' : '' }}
+          </NButton>
+          <NButton size="small" :loading="pushing" :disabled="pulling" @click="handleForcePush" title="强制推送">
+            &#8644;
           </NButton>
           <NButton size="small" @click="handleStash">Stash</NButton>
         </div>

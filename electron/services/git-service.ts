@@ -197,11 +197,16 @@ export async function commit(repoPath: string, message: string): Promise<any> {
   }
 }
 
-export async function push(repoPath: string, remote?: string, branch?: string): Promise<any> {
+export async function push(repoPath: string, remote?: string, branch?: string, force?: boolean): Promise<any> {
   try {
     const git = getGit(repoPath)
-    const result = await git.push(remote || 'origin', branch)
-    return { success: true, message: '推送成功' }
+    const args = ['--force', remote || 'origin', branch].filter(Boolean)
+    if (force) {
+      await git.raw(['push', '--force', remote || 'origin', branch].filter(Boolean))
+    } else {
+      await git.push(remote || 'origin', branch)
+    }
+    return { success: true, message: force ? '强制推送成功' : '推送成功' }
   } catch (e: any) {
     return { success: false, message: e.message || String(e) }
   }
@@ -790,6 +795,19 @@ export async function searchCommits(repoPath: string, query: string, options?: {
     return { commits }
   } catch (e: any) {
     return { commits: [], error: e.message }
+  }
+}
+
+export async function isCommitOnCurrentBranch(repoPath: string, commitHash: string): Promise<boolean> {
+  try {
+    const git = getGit(repoPath)
+    console.log('[GitService] isCommitOnCurrentBranch:', { commitHash, repoPath })
+    await git.raw(['merge-base', '--is-ancestor', commitHash, 'HEAD'])
+    console.log('[GitService] isCommitOnCurrentBranch result: true')
+    return true
+  } catch (e) {
+    console.log('[GitService] isCommitOnCurrentBranch result: false')
+    return false
   }
 }
 

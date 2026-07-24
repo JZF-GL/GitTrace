@@ -49,8 +49,8 @@ export function registerGitHandlers() {
     return gitService.commit(repoPath, message)
   })
 
-  ipcMain.handle('git:push', async (_event, repoPath: string, remote?: string, branch?: string) => {
-    return gitService.push(repoPath, remote, branch)
+  ipcMain.handle('git:push', async (_event, repoPath: string, remote?: string, branch?: string, force?: boolean) => {
+    return gitService.push(repoPath, remote, branch, force)
   })
 
   ipcMain.handle('git:pull', async (_event, repoPath: string, remote?: string, branch?: string) => {
@@ -220,5 +220,9 @@ export function registerGitHandlers() {
   // Commit stat
   ipcMain.handle('git:commit-stat', async (_event, repoPath: string, commitHash: string) => {
     return gitService.getCommitStat(repoPath, commitHash)
+  })
+
+  ipcMain.handle('git:is-commit-on-current-branch', async (_event, repoPath: string, commitHash: string) => {
+    return gitService.isCommitOnCurrentBranch(repoPath, commitHash)
   })
 }

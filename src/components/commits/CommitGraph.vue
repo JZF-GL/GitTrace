@@ -36,6 +36,7 @@ const contextMenu = ref({
   y: 0,
   commit: null as GraphCommit | null,
 })
+const contextMenuCommitOnBranch = ref(true)
 
 // Hover tooltip state
 const hoverTooltip = ref({
@@ -108,8 +109,11 @@ function enableHover() {
   hoverDisabled.value = false
 }
 
-function showContextMenu(e: MouseEvent, commit: GraphCommit) {
+async function showContextMenu(e: MouseEvent, commit: GraphCommit) {
   e.preventDefault()
+  // 只有筛选"当前分支"时才允许回退操作
+  contextMenuCommitOnBranch.value = commitsStore.branchFilter === null
+
   contextMenu.value = {
     show: true,
     x: e.clientX,
@@ -443,30 +447,33 @@ function formatDate(dateStr: string): string {
         <div class="context-menu-item" @click="handleCherryPick">
           挑选提交
         </div>
-        <!-- 只有最新提交显示回退最近提交 -->
-        <template v-if="isLatestCommit(contextMenu.commit)">
+        <!-- 只有当前分支的提交才显示回退/Reset操作 -->
+        <template v-if="contextMenuCommitOnBranch">
+          <!-- 只有最新提交显示回退最近提交 -->
+          <template v-if="isLatestCommit(contextMenu.commit)">
+            <div class="context-menu-divider"></div>
+            <div class="context-menu-item" @click="handleUndoLastCommit('soft')">
+              回退最近提交到暂存区
+            </div>
+            <div class="context-menu-item" @click="handleUndoLastCommit('mixed')">
+              回退最近提交到工作区
+            </div>
+          </template>
+          <!-- 只有非最新提交显示 Soft/Mixed Reset -->
+          <template v-if="!isLatestCommit(contextMenu.commit)">
+            <div class="context-menu-divider"></div>
+            <div class="context-menu-item" @click="handleSoftReset">
+              Soft Reset（保留暂存）
+            </div>
+            <div class="context-menu-item" @click="handleMixedReset">
+              Mixed Reset（保留工作区）
+            </div>
+          </template>
           <div class="context-menu-divider"></div>
-          <div class="context-menu-item" @click="handleUndoLastCommit('soft')">
-            回退最近提交到暂存区
-          </div>
-          <div class="context-menu-item" @click="handleUndoLastCommit('mixed')">
-            回退最近提交到工作区
+          <div class="context-menu-item danger" @click="handleReset">
+            回退到此提交（Hard Reset）
           </div>
         </template>
-        <!-- 只有非最新提交显示 Soft/Mixed Reset -->
-        <template v-if="!isLatestCommit(contextMenu.commit)">
-          <div class="context-menu-divider"></div>
-          <div class="context-menu-item" @click="handleSoftReset">
-            Soft Reset（保留暂存）
-          </div>
-          <div class="context-menu-item" @click="handleMixedReset">
-            Mixed Reset（保留工作区）
-          </div>
-        </template>
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-item danger" @click="handleReset">
-          回退到此提交（Hard Reset）
-        </div>
       </div>
     </Teleport>
 

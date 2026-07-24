@@ -63,7 +63,7 @@ watch(() => commitsStore.branchFilter, () => {
   fetchCommits()
 })
 
-function selectCommit(commit: GraphCommit) {
+async function selectCommit(commit: GraphCommit) {
   selectedCommit.value = commit
   showDetail.value = true
 }
@@ -71,26 +71,29 @@ function selectCommit(commit: GraphCommit) {
 function getActions() {
   if (!selectedCommit.value || !repo.value) return []
   const isFirst = commits.value[0]?.hash === selectedCommit.value.hash
+  // 只有筛选"当前分支"时才显示回退操作
+  const isCurrentBranchFilter = commitsStore.branchFilter === null
   const actions: { label: string; key: string }[] = []
 
-  // Cherry-pick
+  // Cherry-pick 所有提交都可以
   actions.push({ label: 'Cherry-pick', key: 'cherry-pick' })
 
-  // 只有最新提交才显示回退最近提交
-  if (isFirst) {
-    actions.push({ label: '回退最近提交到暂存区', key: 'undo-last-soft' })
-    actions.push({ label: '回退最近提交到工作区', key: 'undo-last-mixed' })
-  }
-
-  // 只有非最新提交才显示 Soft Reset 和 Mixed Reset
-  if (!isFirst) {
-    actions.push({ label: 'Soft Reset (保留暂存)', key: 'soft-reset' })
-    actions.push({ label: 'Mixed Reset (保留工作区)', key: 'mixed-reset' })
-  }
-
-  // 只有最新提交才显示修改提交
-  if (isFirst) {
-    actions.push({ label: '修改提交 (Amend)', key: 'amend' })
+  // 只有当前分支筛选时才允许回退操作
+  if (isCurrentBranchFilter) {
+    // 只有最新提交才显示回退最近提交
+    if (isFirst) {
+      actions.push({ label: '回退最近提交到暂存区', key: 'undo-last-soft' })
+      actions.push({ label: '回退最近提交到工作区', key: 'undo-last-mixed' })
+    }
+    // 只有非最新提交才显示 Soft Reset 和 Mixed Reset
+    if (!isFirst) {
+      actions.push({ label: 'Soft Reset (保留暂存)', key: 'soft-reset' })
+      actions.push({ label: 'Mixed Reset (保留工作区)', key: 'mixed-reset' })
+    }
+    // 只有最新提交才显示修改提交
+    if (isFirst) {
+      actions.push({ label: '修改提交 (Amend)', key: 'amend' })
+    }
   }
 
   return actions
