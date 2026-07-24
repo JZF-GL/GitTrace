@@ -152,6 +152,7 @@ async function handleCherryPick() {
         } else if (result?.conflict) {
           message.warning('挑选有冲突，请在工作区解决')
           stagingStore.commitMessage = `cherry-pick ${commit.shortHash}`
+          await stagingStore.fetchStatus(repo.value!.path)
         } else {
           message.error('挑选失败: ' + (result?.message || '未知错误'))
         }
@@ -177,6 +178,104 @@ async function handleReset() {
         const result = await window.electronAPI.git.resetCommit(repo.value!.path, commit.hash, 'hard')
         if (result?.success) {
           message.success('已回退到 ' + commit.shortHash)
+          await Promise.all([
+            branchesStore.fetchBranches(repo.value!.path),
+            commitsStore.fetchGraphForCurrent(repo.value!.path, branchesStore.current),
+            stagingStore.fetchStatus(repo.value!.path),
+          ])
+        } else {
+          message.error('回退失败: ' + (result?.message || '未知错误'))
+        }
+      } catch (e: any) {
+        message.error('回退失败: ' + (e.message || String(e)))
+      }
+    },
+  })
+}
+
+async function handleSoftReset() {
+  const commit = contextMenu.value.commit
+  if (!commit || !repo.value) return
+  hideContextMenu()
+
+  dialog.warning({
+    title: 'Soft Reset',
+    content: `确定要回退到提交 ${commit.shortHash} 吗？更改将保留在暂存区。`,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        const result = await window.electronAPI.git.resetCommit(repo.value!.path, commit.hash, 'soft')
+        if (result?.success) {
+          stagingStore.commitMessage = commit.message
+          message.success('已回退到 ' + commit.shortHash)
+          await Promise.all([
+            branchesStore.fetchBranches(repo.value!.path),
+            commitsStore.fetchGraphForCurrent(repo.value!.path, branchesStore.current),
+            stagingStore.fetchStatus(repo.value!.path),
+          ])
+        } else {
+          message.error('回退失败: ' + (result?.message || '未知错误'))
+        }
+      } catch (e: any) {
+        message.error('回退失败: ' + (e.message || String(e)))
+      }
+    },
+  })
+}
+
+async function handleMixedReset() {
+  const commit = contextMenu.value.commit
+  if (!commit || !repo.value) return
+  hideContextMenu()
+
+  dialog.warning({
+    title: 'Mixed Reset',
+    content: `确定要回退到提交 ${commit.shortHash} 吗？更改将保留在工作区。`,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        const result = await window.electronAPI.git.resetCommit(repo.value!.path, commit.hash, 'mixed')
+        if (result?.success) {
+          stagingStore.commitMessage = commit.message
+          message.success('已回退到 ' + commit.shortHash)
+          await Promise.all([
+            branchesStore.fetchBranches(repo.value!.path),
+            commitsStore.fetchGraphForCurrent(repo.value!.path, branchesStore.current),
+            stagingStore.fetchStatus(repo.value!.path),
+          ])
+        } else {
+          message.error('回退失败: ' + (result?.message || '未知错误'))
+        }
+      } catch (e: any) {
+        message.error('回退失败: ' + (e.message || String(e)))
+      }
+    },
+  })
+}
+
+async function handleUndoLastCommit(mode: 'soft' | 'mixed') {
+  const commit = contextMenu.value.commit
+  if (!commit || !repo.value) return
+  hideContextMenu()
+
+  const title = mode === 'soft' ? '回退最近提交到暂存区' : '回退最近提交到工作区'
+  const content = mode === 'soft'
+    ? '确定要回退最近一次提交吗？更改将保留在暂存区。'
+    : '确定要回退最近一次提交吗？更改将保留在工作区。'
+
+  dialog.warning({
+    title,
+    content,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        const result = await window.electronAPI.git.resetCommit(repo.value!.path, 'HEAD~1', mode)
+        if (result?.success) {
+          stagingStore.commitMessage = commit.message
+          message.success('已回退最近一次提交')
           await Promise.all([
             branchesStore.fetchBranches(repo.value!.path),
             commitsStore.fetchGraphForCurrent(repo.value!.path, branchesStore.current),
@@ -227,6 +326,11 @@ function getRefClass(ref: string): string {
   if (ref.includes('tag:')) return 'ref-tag'
   if (ref.includes('origin/')) return 'ref-remote'
   return 'ref-local'
+}
+
+function isLatestCommit(commit: GraphCommit | null): boolean {
+  if (!commit || props.commits.length === 0) return false
+  return props.commits[0].hash === commit.hash
 }
 
 const allLines = computed(() => {
@@ -339,8 +443,29 @@ function formatDate(dateStr: string): string {
         <div class="context-menu-item" @click="handleCherryPick">
           挑选提交
         </div>
+        <!-- 只有最新提交显示回退最近提交 -->
+        <template v-if="isLatestCommit(contextMenu.commit)">
+          <div class="context-menu-divider"></div>
+          <div class="context-menu-item" @click="handleUndoLastCommit('soft')">
+            回退最近提交到暂存区
+          </div>
+          <div class="context-menu-item" @click="handleUndoLastCommit('mixed')">
+            回退最近提交到工作区
+          </div>
+        </template>
+        <!-- 只有非最新提交显示 Soft/Mixed Reset -->
+        <template v-if="!isLatestCommit(contextMenu.commit)">
+          <div class="context-menu-divider"></div>
+          <div class="context-menu-item" @click="handleSoftReset">
+            Soft Reset（保留暂存）
+          </div>
+          <div class="context-menu-item" @click="handleMixedReset">
+            Mixed Reset（保留工作区）
+          </div>
+        </template>
+        <div class="context-menu-divider"></div>
         <div class="context-menu-item danger" @click="handleReset">
-          回退到此提交
+          回退到此提交（Hard Reset）
         </div>
       </div>
     </Teleport>
@@ -497,6 +622,12 @@ function formatDate(dateStr: string): string {
 
 .context-menu-item.danger:hover {
   background: rgba(248, 81, 73, 0.15);
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 0;
 }
 
 .branch-tag {

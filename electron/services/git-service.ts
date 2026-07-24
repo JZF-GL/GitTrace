@@ -548,9 +548,14 @@ export async function getConfig(repoPath: string): Promise<any> {
 export async function resetCommit(repoPath: string, commitHash: string, mode: 'soft' | 'mixed' | 'hard'): Promise<any> {
   try {
     const git = getGit(repoPath)
+    console.log('[GitService] resetCommit called with:', { commitHash, mode, repoPath })
     await git.raw(['reset', `--${mode}`, commitHash])
-    return { success: true, message: `已${mode === 'soft' ? '软' : mode === 'hard' ? '硬' : ''}重置到 ${commitHash.substring(0, 7)}` }
+    // 验证是否重置成功
+    const currentHead = await git.raw(['rev-parse', 'HEAD'])
+    console.log('[GitService] resetCommit success, HEAD is now:', currentHead.trim())
+    return { success: true, message: `已${mode === 'soft' ? '软' : mode === 'hard' ? '硬' : '混合'}重置到 ${commitHash.substring(0, 7)}` }
   } catch (e: any) {
+    console.error('[GitService] resetCommit error:', e.message)
     return { success: false, message: e.message || String(e) }
   }
 }
@@ -559,7 +564,7 @@ export async function resetCommit(repoPath: string, commitHash: string, mode: 's
 export async function amendCommit(repoPath: string, message: string): Promise<any> {
   try {
     const git = getGit(repoPath)
-    await git.commit(['--amend', '-m', message])
+    await git.raw(['commit', '--amend', '-m', message])
     return { success: true, message: '提交已修改' }
   } catch (e: any) {
     return { success: false, message: e.message || String(e) }

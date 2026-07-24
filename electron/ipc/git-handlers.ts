@@ -153,6 +153,7 @@ export function registerGitHandlers() {
 
   // P0: 撤销提交
   ipcMain.handle('git:reset-commit', async (_event, repoPath: string, commitHash: string, mode: 'soft' | 'mixed' | 'hard') => {
+    console.log('[IPC] git:reset-commit called:', { repoPath, commitHash, mode })
     return gitService.resetCommit(repoPath, commitHash, mode)
   })
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, h } from 'vue'
-import { NInput, NEmpty, NSpin, NButton, NSpace, NDropdown, NSelect, useMessage } from 'naive-ui'
+import { NInput, NEmpty, NSpin, NButton, NSpace, NDropdown, NSelect, NModal, useMessage, useDialog } from 'naive-ui'
 import { useCommitsStore } from '../../stores/commits'
 import { useRepositoryStore } from '../../stores/repository'
 import { useBranchesStore } from '../../stores/branches'
@@ -14,6 +14,7 @@ const repoStore = useRepositoryStore()
 const branchesStore = useBranchesStore()
 const stagingStore = useStagingStore()
 const message = useMessage()
+const dialog = useDialog()
 
 const selectedCommit = ref<GraphCommit | null>(null)
 const searchText = ref('')
@@ -70,40 +71,154 @@ function selectCommit(commit: GraphCommit) {
 function getActions() {
   if (!selectedCommit.value || !repo.value) return []
   const isFirst = commits.value[0]?.hash === selectedCommit.value.hash
-  return [
-    { label: 'Cherry-pick', key: 'cherry-pick' },
-    { label: 'Soft Reset (保留暂存)', key: 'soft-reset' },
-    { label: 'Mixed Reset (保留工作区)', key: 'mixed-reset' },
-    ...(isFirst ? [{ label: '修改提交 (Amend)', key: 'amend' }] : []),
-  ]
+  const actions: { label: string; key: string }[] = []
+
+  // Cherry-pick
+  actions.push({ label: 'Cherry-pick', key: 'cherry-pick' })
+
+  // 只有最新提交才显示回退最近提交
+  if (isFirst) {
+    actions.push({ label: '回退最近提交到暂存区', key: 'undo-last-soft' })
+    actions.push({ label: '回退最近提交到工作区', key: 'undo-last-mixed' })
+  }
+
+  // 只有非最新提交才显示 Soft Reset 和 Mixed Reset
+  if (!isFirst) {
+    actions.push({ label: 'Soft Reset (保留暂存)', key: 'soft-reset' })
+    actions.push({ label: 'Mixed Reset (保留工作区)', key: 'mixed-reset' })
+  }
+
+  // 只有最新提交才显示修改提交
+  if (isFirst) {
+    actions.push({ label: '修改提交 (Amend)', key: 'amend' })
+  }
+
+  return actions
 }
 
 async function handleAction(key: string) {
   if (!selectedCommit.value || !repo.value) return
   const hash = selectedCommit.value.hash
-  let result: any
+  const shortHash = selectedCommit.value.shortHash
 
-  switch (key) {
-    case 'cherry-pick':
-      result = await window.electronAPI.git.cherryPick(repo.value.path, hash)
-      break
-    case 'soft-reset':
-      result = await window.electronAPI.git.resetCommit(repo.value.path, hash, 'soft')
-      break
-    case 'mixed-reset':
-      result = await window.electronAPI.git.resetCommit(repo.value.path, hash, 'mixed')
-      break
-    case 'amend':
-      result = await window.electronAPI.git.amendCommit(repo.value.path, selectedCommit.value.message)
-      break
+  // amend 操作使用自定义对话框
+  if (key === 'amend') {
+    showAmendDialog.value = true
+    amendMessage.value = selectedCommit.value.message
+    return
   }
 
-  if (result?.success) {
-    message.success(result.message)
-    await fetchCommits()
-    await stagingStore.fetchStatus(repo.value.path)
-  } else {
-    message.error(result?.message || '操作失败')
+  const actionMap: Record<string, { title: string; content: string; onConfirm: () => Promise<any> }> = {
+    'cherry-pick': {
+      title: '挑选提交',
+      content: `确定要将提交 ${shortHash} 挑选到当前分支吗？`,
+      onConfirm: () => window.electronAPI.git.cherryPick(repo.value!.path, hash),
+    },
+    'undo-last-soft': {
+      title: '回退最近提交到暂存区',
+      content: `确定要回退最近一次提交吗？更改将保留在暂存区。`,
+      onConfirm: async () => {
+        const result = await window.electronAPI.git.resetCommit(repo.value!.path, 'HEAD~1', 'soft')
+        if (result?.success) {
+          stagingStore.commitMessage = selectedCommit.value!.message
+        }
+        return result
+      },
+    },
+    'undo-last-mixed': {
+      title: '回退最近提交到工作区',
+      content: `确定要回退最近一次提交吗？更改将保留在工作区。`,
+      onConfirm: async () => {
+        const result = await window.electronAPI.git.resetCommit(repo.value!.path, 'HEAD~1', 'mixed')
+        if (result?.success) {
+          stagingStore.commitMessage = selectedCommit.value!.message
+        }
+        return result
+      },
+    },
+    'soft-reset': {
+      title: 'Soft Reset',
+      content: `确定要回退到提交 ${shortHash} 吗？更改将保留在暂存区。`,
+      onConfirm: async () => {
+        const result = await window.electronAPI.git.resetCommit(repo.value!.path, hash, 'soft')
+        if (result?.success) {
+          stagingStore.commitMessage = selectedCommit.value!.message
+        }
+        return result
+      },
+    },
+    'mixed-reset': {
+      title: 'Mixed Reset',
+      content: `确定要回退到提交 ${shortHash} 吗？更改将保留在工作区。`,
+      onConfirm: async () => {
+        const result = await window.electronAPI.git.resetCommit(repo.value!.path, hash, 'mixed')
+        if (result?.success) {
+          stagingStore.commitMessage = selectedCommit.value!.message
+        }
+        return result
+      },
+    },
+  }
+
+  const action = actionMap[key]
+  if (!action) return
+
+  dialog.warning({
+    title: action.title,
+    content: action.content,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        const result = await action.onConfirm()
+        if (result?.success) {
+          message.success(result.message)
+          await Promise.all([
+            fetchCommits(),
+            stagingStore.fetchStatus(repo.value!.path),
+            branchesStore.fetchBranches(repo.value!.path),
+          ])
+        } else if (result?.conflict) {
+          message.warning(result.message || '有冲突，请在工作区解决')
+          if (key === 'cherry-pick') {
+            stagingStore.commitMessage = `cherry-pick ${shortHash}`
+          }
+          await stagingStore.fetchStatus(repo.value!.path)
+        } else {
+          message.error(result?.message || '操作失败')
+        }
+      } catch (e: any) {
+        message.error('操作失败: ' + (e.message || String(e)))
+      }
+    },
+  })
+}
+
+// Amend 对话框相关
+const showAmendDialog = ref(false)
+const amendMessage = ref('')
+const amendLoading = ref(false)
+
+async function handleAmend() {
+  if (!repo.value || !amendMessage.value.trim()) return
+  amendLoading.value = true
+  try {
+    const result = await window.electronAPI.git.amendCommit(repo.value.path, amendMessage.value.trim())
+    if (result?.success) {
+      message.success(result.message)
+      showAmendDialog.value = false
+      await Promise.all([
+        fetchCommits(),
+        stagingStore.fetchStatus(repo.value.path),
+        branchesStore.fetchBranches(repo.value.path),
+      ])
+    } else {
+      message.error(result?.message || '修改失败')
+    }
+  } catch (e: any) {
+    message.error('修改失败: ' + (e.message || String(e)))
+  } finally {
+    amendLoading.value = false
   }
 }
 </script>
@@ -164,6 +279,25 @@ async function handleAction(key: string) {
       </div>
     </div>
   </div>
+
+  <!-- Amend 对话框 -->
+  <NModal v-model:show="showAmendDialog" preset="card" title="修改提交信息" style="width: 450px;">
+    <NInput
+      v-model:value="amendMessage"
+      type="textarea"
+      placeholder="输入新的提交信息"
+      :autosize="{ minRows: 3, maxRows: 6 }"
+      @keyup.enter.ctrl="handleAmend"
+    />
+    <template #footer>
+      <NSpace justify="end">
+        <NButton @click="showAmendDialog = false">取消</NButton>
+        <NButton type="primary" :loading="amendLoading" :disabled="!amendMessage.trim()" @click="handleAmend">
+          修改
+        </NButton>
+      </NSpace>
+    </template>
+  </NModal>
 </template>
 
 <style scoped>
