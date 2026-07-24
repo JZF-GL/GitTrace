@@ -787,3 +787,38 @@ export async function searchCommits(repoPath: string, query: string, options?: {
     return { commits: [], error: e.message }
   }
 }
+
+export async function getCommitStat(repoPath: string, commitHash: string): Promise<any> {
+  try {
+    const git = getGit(repoPath)
+    const result = await git.raw(['show', '--stat', '--format=%s', commitHash])
+    const lines = result.split('\n')
+
+    // 第一行是提交信息
+    const message = lines[0] || ''
+
+    // 查找统计行，如 "1 file changed, 1 insertion(+), 1 deletion(-)"
+    let filesChanged = 0
+    let insertions = 0
+    let deletions = 0
+
+    for (const line of lines) {
+      const match = line.match(/(\d+) files? changed/)
+      if (match) {
+        filesChanged = parseInt(match[1])
+      }
+      const insertMatch = line.match(/(\d+) insertions?\(\+\)/)
+      if (insertMatch) {
+        insertions = parseInt(insertMatch[1])
+      }
+      const deleteMatch = line.match(/(\d+) deletions?\(-\)/)
+      if (deleteMatch) {
+        deletions = parseInt(deleteMatch[1])
+      }
+    }
+
+    return { message, filesChanged, insertions, deletions }
+  } catch (e: any) {
+    return { message: '', filesChanged: 0, insertions: 0, deletions: 0, error: e.message }
+  }
+}

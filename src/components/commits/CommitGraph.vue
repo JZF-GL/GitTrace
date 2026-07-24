@@ -26,6 +26,9 @@ const dialog = useDialog()
 
 const repo = computed(() => repoStore.currentRepo)
 
+// 用于模板中访问 window
+const window = globalThis.window
+
 // Context menu state
 const contextMenu = ref({
   show: false,
@@ -33,6 +36,77 @@ const contextMenu = ref({
   y: 0,
   commit: null as GraphCommit | null,
 })
+
+// Hover tooltip state
+const hoverTooltip = ref({
+  show: false,
+  x: 0,
+  y: 0,
+  commit: null as GraphCommit | null,
+  stat: null as { message: string; filesChanged: number; insertions: number; deletions: number } | null,
+  loading: false,
+})
+
+const hoverDisabled = ref(false)
+let hoverTimeout: ReturnType<typeof setTimeout> | null = null
+
+async function showHoverTooltip(e: MouseEvent, commit: GraphCommit) {
+  // 如果被点击禁用，不显示
+  if (hoverDisabled.value) return
+  if (contextMenu.value.show) return
+
+  // 清除之前的定时器
+  if (hoverTimeout) {
+    clearTimeout(hoverTimeout)
+  }
+
+  // 延迟显示，避免快速移动时频繁触发
+  hoverTimeout = setTimeout(async () => {
+    hoverTooltip.value = {
+      show: true,
+      x: e.clientX,
+      y: e.clientY,
+      commit,
+      stat: null,
+      loading: true,
+    }
+
+    // 获取提交统计信息
+    if (repo.value) {
+      try {
+        const stat = await window.electronAPI.git.commitStat(repo.value.path, commit.hash)
+        hoverTooltip.value.stat = stat
+      } catch {
+        hoverTooltip.value.stat = null
+      }
+    }
+    hoverTooltip.value.loading = false
+  }, 300)
+}
+
+function updateHoverPosition(e: MouseEvent) {
+  if (hoverTooltip.value.show && !hoverDisabled.value) {
+    hoverTooltip.value.x = e.clientX
+    hoverTooltip.value.y = e.clientY
+  }
+}
+
+function hideHoverTooltip() {
+  if (hoverTimeout) {
+    clearTimeout(hoverTimeout)
+    hoverTimeout = null
+  }
+  hoverTooltip.value.show = false
+}
+
+function disableHover() {
+  hoverDisabled.value = true
+  hideHoverTooltip()
+}
+
+function enableHover() {
+  hoverDisabled.value = false
+}
 
 function showContextMenu(e: MouseEvent, commit: GraphCommit) {
   e.preventDefault()
@@ -229,8 +303,11 @@ function formatDate(dateStr: string): string {
         :key="commit.hash"
         class="commit-row"
         :class="{ selected: selectedHash === commit.hash }"
-        @click="emit('select', commit)"
-        @contextmenu="showContextMenu($event, commit)"
+        @click="disableHover(); emit('select', commit)"
+        @contextmenu="disableHover(); showContextMenu($event, commit)"
+        @mouseenter="enableHover(); showHoverTooltip($event, commit)"
+        @mousemove="updateHoverPosition($event)"
+        @mouseleave="hideHoverTooltip()"
       >
         <div class="commit-info">
           <div class="commit-message">
@@ -264,6 +341,36 @@ function formatDate(dateStr: string): string {
         </div>
         <div class="context-menu-item danger" @click="handleReset">
           回退到此提交
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Hover tooltip -->
+    <Teleport to="body">
+      <div
+        v-if="hoverTooltip.show && hoverTooltip.commit"
+        class="commit-hover-tooltip"
+        :style="{
+          left: Math.min(hoverTooltip.x + 20, window.innerWidth - 380) + 'px',
+          top: Math.min(hoverTooltip.y - 10, window.innerHeight - 200) + 'px'
+        }"
+      >
+        <div class="tooltip-message">{{ hoverTooltip.commit.message }}</div>
+        <div v-if="hoverTooltip.commit.refs" class="tooltip-refs">
+          <span v-for="ref in parseRefs(hoverTooltip.commit.refs)" :key="ref" class="branch-tag" :class="getRefClass(ref)">
+            {{ ref.replace('HEAD -> ', '').replace('tag: ', '') }}
+          </span>
+        </div>
+        <div class="tooltip-info">
+          <span class="tooltip-hash">{{ hoverTooltip.commit.shortHash }}</span>
+          <span class="tooltip-author">{{ hoverTooltip.commit.author }}</span>
+          <span class="tooltip-date">{{ formatDate(hoverTooltip.commit.date) }}</span>
+        </div>
+        <div v-if="hoverTooltip.loading" class="tooltip-loading">加载中...</div>
+        <div v-else-if="hoverTooltip.stat" class="tooltip-stat">
+          <span class="stat-files">{{ hoverTooltip.stat.filesChanged }} 个文件变更</span>
+          <span v-if="hoverTooltip.stat.insertions > 0" class="stat-add">+{{ hoverTooltip.stat.insertions }}</span>
+          <span v-if="hoverTooltip.stat.deletions > 0" class="stat-del">-{{ hoverTooltip.stat.deletions }}</span>
         </div>
       </div>
     </Teleport>
@@ -419,5 +526,73 @@ function formatDate(dateStr: string): string {
 .ref-tag {
   background: rgba(210, 153, 34, 0.2);
   color: var(--accent-orange);
+}
+
+.commit-hover-tooltip {
+  position: fixed;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 350px;
+  max-width: 400px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  z-index: 1001;
+  pointer-events: none;
+}
+
+.tooltip-message {
+  font-size: 13px;
+  color: var(--text-primary);
+  word-break: break-word;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.tooltip-refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.tooltip-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.tooltip-hash {
+  font-family: monospace;
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+
+.tooltip-loading {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.tooltip-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.stat-files {
+  color: var(--text-secondary);
+}
+
+.stat-add {
+  color: var(--accent-green);
+}
+
+.stat-del {
+  color: var(--accent-red);
 }
 </style>

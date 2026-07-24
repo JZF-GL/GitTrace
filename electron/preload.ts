@@ -56,6 +56,7 @@ const gitAPI = {
   commitDiff: (repoPath: string, commitHash: string, filePath?: string) => ipcRenderer.invoke('git:commit-diff', repoPath, commitHash, filePath),
   searchCommits: (repoPath: string, query: string, options?: any) => ipcRenderer.invoke('git:search-commits', repoPath, query, options),
   exec: (repoPath: string, command: string) => ipcRenderer.invoke('git:exec', repoPath, command),
+  commitStat: (repoPath: string, commitHash: string) => ipcRenderer.invoke('git:commit-stat', repoPath, commitHash),
   onProgress: (callback: (data: any) => void) => {
     ipcRenderer.on('git:progress', (_event, data) => callback(data))
   },

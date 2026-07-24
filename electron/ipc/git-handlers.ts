@@ -215,4 +215,9 @@ export function registerGitHandlers() {
   ipcMain.handle('git:exec', async (_event, repoPath: string, command: string) => {
     return gitService.execCommand(repoPath, command)
   })
+
+  // Commit stat
+  ipcMain.handle('git:commit-stat', async (_event, repoPath: string, commitHash: string) => {
+    return gitService.getCommitStat(repoPath, commitHash)
+  })
 }
