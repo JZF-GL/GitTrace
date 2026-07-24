@@ -12,6 +12,7 @@ export interface GraphCommit {
   isMerge: boolean
   branch: string[]
   pushed?: boolean
+  refs?: string
 }
 
 export const useCommitsStore = defineStore('commits', () => {
@@ -60,15 +61,15 @@ export const useCommitsStore = defineStore('commits', () => {
     // First pass: collect all data in reverse order (git log outputs newest first)
     const hashes: string[] = []
     const parentHashesMap = new Map<string, string[]>()
-    const metaMap = new Map<string, { shortHash: string; author: string; date: string; message: string }>()
+    const metaMap = new Map<string, { shortHash: string; author: string; date: string; message: string; refs: string }>()
 
     for (const line of lines) {
-      const match = line.match(/^(.+)\|(.*)\|(.*)\|(.*)\|(.*)\|(.*)$/)
+      const match = line.match(/^(.*)\|(.*)\|(.*)\|(.*)\|(.*)\|(.*)\|(.*)$/)
       if (!match) continue
-      const [, hash, parentsStr, shortHash, author, date, message] = match
+      const [, refs, hash, parentsStr, shortHash, author, date, message] = match
       hashes.push(hash)
       parentHashesMap.set(hash, parentsStr ? parentsStr.split(' ') : [])
-      metaMap.set(hash, { shortHash, author, date, message })
+      metaMap.set(hash, { shortHash, author, date, message, refs })
     }
 
     // Second pass: assign columns
@@ -119,6 +120,9 @@ export const useCommitsStore = defineStore('commits', () => {
       const parents = parentHashesMap.get(hash) || []
       const meta = metaMap.get(hash)!
 
+      // 解析 refs，如 "HEAD -> main, dev, tag: v1.0"
+      const refs = meta.refs ? meta.refs.trim() : ''
+
       result.push({
         hash,
         shortHash: meta.shortHash,
@@ -129,6 +133,7 @@ export const useCommitsStore = defineStore('commits', () => {
         column: columnMap.get(hash) ?? 0,
         isMerge: parents.length > 1,
         branch: [],
+        refs,
       })
     }
 

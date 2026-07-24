@@ -76,7 +76,7 @@ export async function getLogGraph(repoPath: string, maxCount: number = 200, bran
     'log',
     '--oneline',
     '--decorate',
-    '--format=%H|%P|%h|%an|%ai|%s',
+    '--format=%D|%H|%P|%h|%an|%ai|%s',
     `--max-count=${maxCount}`,
   ]
   if (branch) {

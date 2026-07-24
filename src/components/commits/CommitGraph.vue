@@ -143,6 +143,18 @@ function getLineColor(col: number): string {
   return colors[col % colors.length]
 }
 
+function parseRefs(refs: string): string[] {
+  if (!refs) return []
+  return refs.split(',').map(r => r.trim()).filter(r => r)
+}
+
+function getRefClass(ref: string): string {
+  if (ref.includes('HEAD')) return 'ref-head'
+  if (ref.includes('tag:')) return 'ref-tag'
+  if (ref.includes('origin/')) return 'ref-remote'
+  return 'ref-local'
+}
+
 const allLines = computed(() => {
   const lines: { x1: number; y1: number; x2: number; y2: number; color: string }[] = []
   const hashIndex = new Map<string, number>()
@@ -225,6 +237,11 @@ function formatDate(dateStr: string): string {
             <span v-if="commit.pushed === true" class="push-status pushed" title="已推送">&#10003;</span>
             <span v-else-if="commit.pushed === false" class="push-status unpushed" title="未推送">&#8644;</span>
             {{ commit.message }}
+            <template v-if="commit.refs">
+              <span v-for="ref in parseRefs(commit.refs)" :key="ref" class="branch-tag" :class="getRefClass(ref)">
+                {{ ref.replace('HEAD -> ', '').replace('tag: ', '') }}
+              </span>
+            </template>
           </div>
           <div class="commit-meta">
             <span class="commit-hash">{{ commit.shortHash }}</span>
@@ -373,5 +390,34 @@ function formatDate(dateStr: string): string {
 
 .context-menu-item.danger:hover {
   background: rgba(248, 81, 73, 0.15);
+}
+
+.branch-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ref-head {
+  background: rgba(88, 166, 255, 0.2);
+  color: var(--accent-blue);
+}
+
+.ref-local {
+  background: rgba(63, 185, 80, 0.2);
+  color: var(--accent-green);
+}
+
+.ref-remote {
+  background: rgba(188, 140, 255, 0.2);
+  color: var(--accent-purple);
+}
+
+.ref-tag {
+  background: rgba(210, 153, 34, 0.2);
+  color: var(--accent-orange);
 }
 </style>
