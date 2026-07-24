@@ -122,8 +122,18 @@ async function handleStashPop(index?: number) {
   if (!repo.value) return
   const stashRef = index !== undefined ? `stash@{${index}}` : undefined
   const result = await window.electronAPI.git.stashPop(repo.value.path, stashRef)
-  if (result?.success) { message.success(result.message); await fetchStashList(); await stagingStore.fetchStatus(repo.value.path) }
-  else { message.error('弹出失败: ' + (result?.message || '未知错误')) }
+  if (result?.success) {
+    message.success(result.message)
+    await fetchStashList()
+    await stagingStore.fetchStatus(repo.value.path)
+  } else if (result?.conflict) {
+    message.warning('Stash 弹出有冲突，请在工作区解决')
+    // 自动填充提交信息
+    stagingStore.commitMessage = 'Apply stash'
+    await stagingStore.fetchStatus(repo.value.path)
+  } else {
+    message.error('弹出失败: ' + (result?.message || '未知错误'))
+  }
 }
 
 async function handleStashDrop(index: number) {

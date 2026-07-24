@@ -1,6 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { format } from 'date-fns'
+import { useMessage, useDialog } from 'naive-ui'
+import { useRepositoryStore } from '../../stores/repository'
+import { useBranchesStore } from '../../stores/branches'
+import { useCommitsStore } from '../../stores/commits'
+import { useStagingStore } from '../../stores/staging'
 import type { GraphCommit } from '../../stores/commits'
 
 const props = defineProps<{
@@ -11,6 +16,107 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'select', commit: GraphCommit): void
 }>()
+
+const repoStore = useRepositoryStore()
+const branchesStore = useBranchesStore()
+const commitsStore = useCommitsStore()
+const stagingStore = useStagingStore()
+const message = useMessage()
+const dialog = useDialog()
+
+const repo = computed(() => repoStore.currentRepo)
+
+// Context menu state
+const contextMenu = ref({
+  show: false,
+  x: 0,
+  y: 0,
+  commit: null as GraphCommit | null,
+})
+
+function showContextMenu(e: MouseEvent, commit: GraphCommit) {
+  e.preventDefault()
+  contextMenu.value = {
+    show: true,
+    x: e.clientX,
+    y: e.clientY,
+    commit,
+  }
+}
+
+function hideContextMenu() {
+  contextMenu.value.show = false
+}
+
+onMounted(() => {
+  document.addEventListener('click', hideContextMenu)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', hideContextMenu)
+})
+
+async function handleCherryPick() {
+  const commit = contextMenu.value.commit
+  if (!commit || !repo.value) return
+  hideContextMenu()
+
+  dialog.warning({
+    title: '挑选提交',
+    content: `确定要将提交 ${commit.shortHash} 挑选到当前分支吗？`,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        const result = await window.electronAPI.git.cherryPick(repo.value!.path, commit.hash)
+        if (result?.success) {
+          message.success('挑选成功')
+          await Promise.all([
+            commitsStore.fetchGraphForCurrent(repo.value!.path, branchesStore.current),
+            stagingStore.fetchStatus(repo.value!.path),
+          ])
+        } else if (result?.conflict) {
+          message.warning('挑选有冲突，请在工作区解决')
+          stagingStore.commitMessage = `cherry-pick ${commit.shortHash}`
+        } else {
+          message.error('挑选失败: ' + (result?.message || '未知错误'))
+        }
+      } catch (e: any) {
+        message.error('挑选失败: ' + (e.message || String(e)))
+      }
+    },
+  })
+}
+
+async function handleReset() {
+  const commit = contextMenu.value.commit
+  if (!commit || !repo.value) return
+  hideContextMenu()
+
+  dialog.warning({
+    title: '回退到此提交',
+    content: `确定要回退到提交 ${commit.shortHash} 吗？此操作会丢失之后的提交。`,
+    positiveText: '确定回退',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        const result = await window.electronAPI.git.resetCommit(repo.value!.path, commit.hash, 'hard')
+        if (result?.success) {
+          message.success('已回退到 ' + commit.shortHash)
+          await Promise.all([
+            branchesStore.fetchBranches(repo.value!.path),
+            commitsStore.fetchGraphForCurrent(repo.value!.path, branchesStore.current),
+            stagingStore.fetchStatus(repo.value!.path),
+          ])
+        } else {
+          message.error('回退失败: ' + (result?.message || '未知错误'))
+        }
+      } catch (e: any) {
+        message.error('回退失败: ' + (e.message || String(e)))
+      }
+    },
+  })
+}
 
 const columnWidth = 20
 const rowHeight = 40
@@ -112,6 +218,7 @@ function formatDate(dateStr: string): string {
         class="commit-row"
         :class="{ selected: selectedHash === commit.hash }"
         @click="emit('select', commit)"
+        @contextmenu="showContextMenu($event, commit)"
       >
         <div class="commit-info">
           <div class="commit-message">
@@ -127,6 +234,22 @@ function formatDate(dateStr: string): string {
         </div>
       </div>
     </div>
+
+    <!-- Context menu -->
+    <Teleport to="body">
+      <div
+        v-if="contextMenu.show"
+        class="commit-context-menu"
+        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+      >
+        <div class="context-menu-item" @click="handleCherryPick">
+          挑选提交
+        </div>
+        <div class="context-menu-item danger" @click="handleReset">
+          回退到此提交
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -219,5 +342,36 @@ function formatDate(dateStr: string): string {
 
 .push-status.unpushed {
   color: var(--accent-orange);
+}
+
+.commit-context-menu {
+  position: fixed;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 160px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+}
+
+.context-menu-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background 0.1s;
+}
+
+.context-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.context-menu-item.danger {
+  color: var(--accent-red);
+}
+
+.context-menu-item.danger:hover {
+  background: rgba(248, 81, 73, 0.15);
 }
 </style>

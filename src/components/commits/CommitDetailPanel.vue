@@ -20,6 +20,7 @@ const selectedFile = ref<string | null>(null)
 const diff = ref('')
 const loading = ref(false)
 const loadingDiff = ref(false)
+const lastCommitHash = ref<string | null>(null)
 
 watch(() => props.commit, async (commit) => {
   if (!commit || !repo.value) {
@@ -37,7 +38,13 @@ watch(() => props.commit, async (commit) => {
     files.value = result.files || []
     console.log('[CommitDetailPanel] files:', files.value)
     if (files.value.length > 0) {
+      // 先清空 selectedFile 以便触发 watch
+      selectedFile.value = null
+      // 强制获取第一个文件的 diff
+      await fetchDiff(commit.hash, files.value[0].path)
       selectedFile.value = files.value[0].path
+    } else {
+      diff.value = ''
     }
   } finally {
     loading.value = false
@@ -50,15 +57,20 @@ watch(selectedFile, async (file) => {
     return
   }
 
+  // 如果是同一个 commit，需要强制刷新 diff
+  await fetchDiff(props.commit.hash, file)
+})
+
+async function fetchDiff(commitHash: string, file: string) {
   console.log('[CommitDetailPanel] fetching diff for:', file)
   loadingDiff.value = true
   try {
-    diff.value = await window.electronAPI.git.commitDiff(repo.value.path, props.commit.hash, file)
+    diff.value = await window.electronAPI.git.commitDiff(repo.value.path, commitHash, file)
     console.log('[CommitDetailPanel] diff result length:', diff.value?.length)
   } finally {
     loadingDiff.value = false
   }
-})
+}
 
 function getStatusSymbol(status: string): string {
   if (status.startsWith('A')) return 'A'

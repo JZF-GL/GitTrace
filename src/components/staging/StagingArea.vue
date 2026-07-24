@@ -262,6 +262,7 @@ async function handleCommit() {
     await Promise.all([
       stagingStore.fetchStatus(repo.value.path),
       commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
+      branchesStore.fetchBranches(repo.value.path),
     ])
     message.success('提交成功')
   } catch (e: any) {
@@ -279,6 +280,7 @@ async function handlePush() {
       await Promise.all([
         stagingStore.fetchStatus(repo.value.path),
         commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
+        branchesStore.fetchBranches(repo.value.path),
       ])
     } else {
       message.error('推送失败: ' + result.message)
@@ -298,12 +300,16 @@ async function handlePull() {
       await Promise.all([
         stagingStore.fetchStatus(repo.value.path),
         commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
+        branchesStore.fetchBranches(repo.value.path),
       ])
     } else if (result.conflict) {
       message.warning('拉取有冲突，请解决')
       // 自动填充合并提交信息
       stagingStore.commitMessage = `Merge branch '${branchesStore.current}' of ${repo.value.name} into ${branchesStore.current}`
-      await stagingStore.fetchStatus(repo.value.path)
+      await Promise.all([
+        stagingStore.fetchStatus(repo.value.path),
+        branchesStore.fetchBranches(repo.value.path),
+      ])
       showConflictResolver.value = true
     } else {
       message.error('拉取失败: ' + result.message)

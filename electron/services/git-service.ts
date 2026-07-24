@@ -427,6 +427,14 @@ export async function stashPop(repoPath: string, stashRef?: string): Promise<any
     await git.stash(['pop', ...(stashRef ? [stashRef] : [])])
     return { success: true, message: '弹出成功' }
   } catch (e: any) {
+    // 检查是否是冲突
+    const git = getGit(repoPath)
+    try {
+      const status = await git.status()
+      if (status.conflicted.length > 0) {
+        return { success: false, conflict: true, message: `Stash 弹出有冲突: ${status.conflicted.length} 个文件`, files: status.conflicted }
+      }
+    } catch {}
     return { success: false, message: e.message || String(e) }
   }
 }
@@ -565,6 +573,14 @@ export async function cherryPick(repoPath: string, commitHash: string): Promise<
     await git.raw(['cherry-pick', commitHash])
     return { success: true, message: `已 cherry-pick ${commitHash.substring(0, 7)}` }
   } catch (e: any) {
+    // 检查是否是冲突
+    const git = getGit(repoPath)
+    try {
+      const status = await git.status()
+      if (status.conflicted.length > 0) {
+        return { success: false, conflict: true, message: `Cherry-pick 有冲突: ${status.conflicted.length} 个文件`, files: status.conflicted }
+      }
+    } catch {}
     return { success: false, message: e.message || String(e) }
   }
 }
@@ -577,6 +593,14 @@ export async function rebase(repoPath: string, branch: string, interactive?: boo
     await git.raw(args)
     return { success: true, message: `已 rebase 到 ${branch}` }
   } catch (e: any) {
+    // 检查是否是冲突
+    const git = getGit(repoPath)
+    try {
+      const status = await git.status()
+      if (status.conflicted.length > 0) {
+        return { success: false, conflict: true, message: `Rebase 有冲突: ${status.conflicted.length} 个文件`, files: status.conflicted }
+      }
+    } catch {}
     return { success: false, message: e.message || String(e) }
   }
 }
