@@ -347,12 +347,17 @@ const allLines = computed(() => {
     for (const parentHash of commit.parentHashes) {
       const parentIndex = hashIndex.get(parentHash)
       if (parentIndex !== undefined) {
+        const parentColumn = props.commits[parentIndex].column
+        // 对于合并线（从 column 0 到 column 1），使用目标列的颜色
+        const color = (commit.column === 0 && parentColumn === 1)
+          ? getLineColor(parentColumn)
+          : getLineColor(commit.column)
         lines.push({
           x1: getX(commit.column),
           y1: getY(i),
-          x2: getX(props.commits[parentIndex].column),
+          x2: getX(parentColumn),
           y2: getY(parentIndex),
-          color: getLineColor(commit.column),
+          color,
         })
       }
     }

@@ -103,24 +103,15 @@ export const useCommitsStore = defineStore('commits', () => {
 
     // Second: assign columns
     // Main line commits -> column 0
-    // Merge source commits and their ancestors -> column 1
+    // Branch line commits -> column 1
     for (let i = hashes.length - 1; i >= 0; i--) {
       const hash = hashes[i]
-      const parents = parentHashesMap.get(hash) || []
 
       if (onMainLine.has(hash)) {
         columnMap.set(hash, 0)
       } else {
-        // This commit is on a branch line
-        // Check if any of its parents is on the main line
-        // If so, this is a merge target, use column 0
-        // Otherwise, use column 1
-        const hasParentOnMainLine = parents.some(p => onMainLine.has(p))
-        if (hasParentOnMainLine) {
-          columnMap.set(hash, 0)
-        } else {
-          columnMap.set(hash, 1)
-        }
+        // Not on main line -> branch line -> column 1
+        columnMap.set(hash, 1)
       }
     }
 
