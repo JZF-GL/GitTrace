@@ -4,6 +4,7 @@ import { useRepositoryStore } from '../stores/repository'
 import { useCommitsStore } from '../stores/commits'
 import { useStagingStore } from '../stores/staging'
 import { useBranchesStore } from '../stores/branches'
+import { useAppStore } from '../stores/app'
 import TitleBar from '../components/layout/TitleBar.vue'
 import Sidebar from '../components/layout/Sidebar.vue'
 import RepoView from '../components/repository/RepoView.vue'
@@ -13,6 +14,7 @@ const repoStore = useRepositoryStore()
 const commitsStore = useCommitsStore()
 const stagingStore = useStagingStore()
 const branchesStore = useBranchesStore()
+const appStore = useAppStore()
 
 const hasRepo = computed(() => !!repoStore.currentRepo)
 
@@ -29,6 +31,13 @@ watch(() => repoStore.currentRepo, async (repo) => {
     stagingStore.fetchStatus(repo.path),
   ])
 }, { immediate: true })
+
+// 切换到工作区时刷新状态
+watch(() => appStore.activeTab, async (tab) => {
+  if (tab === 'staging' && repoStore.currentRepo) {
+    await stagingStore.fetchStatus(repoStore.currentRepo.path)
+  }
+})
 </script>
 
 <template>

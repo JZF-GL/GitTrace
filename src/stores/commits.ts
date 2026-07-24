@@ -58,7 +58,7 @@ export const useCommitsStore = defineStore('commits', () => {
     const lines = raw.split('\n').filter(l => l.trim())
     const result: GraphCommit[] = []
 
-    // First pass: collect all data in reverse order (git log outputs newest first)
+    // First pass: collect all data (git log outputs newest first)
     const hashes: string[] = []
     const parentHashesMap = new Map<string, string[]>()
     const metaMap = new Map<string, { shortHash: string; author: string; date: string; message: string; refs: string }>()
@@ -72,45 +72,55 @@ export const useCommitsStore = defineStore('commits', () => {
       metaMap.set(hash, { shortHash, author, date, message, refs })
     }
 
-    // Second pass: assign columns
-    // Strategy: each commit continues its parent's column (first parent = main line)
-    // Only merge commits' second parents get new columns
-    const columnMap = new Map<string, number>()
-    let nextColumn = 1 // column 0 is the main line
+    // Build hash to index lookup
+    const hashToIndex = new Map<string, number>()
+    for (let i = 0; i < hashes.length; i++) {
+      hashToIndex.set(hashes[i], i)
+    }
 
-    // Start from the oldest commit (reverse order)
+    // Second pass: assign columns
+    // Strategy: Main line is always column 0
+    // When a merge happens, the merge source (second parent) and its ancestors
+    // are on column 1 until they merge back to column 0
+    const columnMap = new Map<string, number>()
+
+    // First: identify which commits are on the main line
+    // Main line = following first parent chain from HEAD
+    const onMainLine = new Set<string>()
+    {
+      let currentHash = hashes[0] // HEAD
+      while (currentHash && hashToIndex.has(currentHash)) {
+        onMainLine.add(currentHash)
+        const idx = hashToIndex.get(currentHash)!
+        const parents = parentHashesMap.get(currentHash) || []
+        if (parents.length > 0) {
+          currentHash = parents[0] // Follow first parent
+        } else {
+          break
+        }
+      }
+    }
+
+    // Second: assign columns
+    // Main line commits -> column 0
+    // Merge source commits and their ancestors -> column 1
     for (let i = hashes.length - 1; i >= 0; i--) {
       const hash = hashes[i]
       const parents = parentHashesMap.get(hash) || []
 
-      // Assign column to parents first (they come later in time)
-      for (let p = 0; p < parents.length; p++) {
-        const parentHash = parents[p]
-        if (!columnMap.has(parentHash)) {
-          if (p === 0) {
-            // First parent is on the same line
-            // Will be set when we process this commit
-          } else {
-            // Other parents (merge sources) get new columns
-            columnMap.set(parentHash, nextColumn++)
-          }
-        }
-      }
-
-      // Now assign column to this commit
-      if (!columnMap.has(hash)) {
-        if (parents.length > 0) {
-          // Inherit first parent's column (or use 0 if not set yet)
-          columnMap.set(hash, columnMap.get(parents[0]) ?? 0)
-        } else {
-          // Root commit
+      if (onMainLine.has(hash)) {
+        columnMap.set(hash, 0)
+      } else {
+        // This commit is on a branch line
+        // Check if any of its parents is on the main line
+        // If so, this is a merge target, use column 0
+        // Otherwise, use column 1
+        const hasParentOnMainLine = parents.some(p => onMainLine.has(p))
+        if (hasParentOnMainLine) {
           columnMap.set(hash, 0)
+        } else {
+          columnMap.set(hash, 1)
         }
-      }
-
-      // First parent inherits this commit's column
-      if (parents.length > 0 && !columnMap.has(parents[0])) {
-        columnMap.set(parents[0], columnMap.get(hash)!)
       }
     }
 
@@ -120,7 +130,6 @@ export const useCommitsStore = defineStore('commits', () => {
       const parents = parentHashesMap.get(hash) || []
       const meta = metaMap.get(hash)!
 
-      // 解析 refs，如 "HEAD -> main, dev, tag: v1.0"
       const refs = meta.refs ? meta.refs.trim() : ''
 
       result.push({

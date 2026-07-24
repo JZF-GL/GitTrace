@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import { NButton, NInput, NSpace, NEmpty, NSelect, NModal, useMessage, useDialog } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useStagingStore, type FileChange } from '../../stores/staging'
@@ -264,6 +264,7 @@ async function handleCommit() {
       commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
       branchesStore.fetchBranches(repo.value.path),
     ])
+    await loadCommitHistory() // 刷新提交历史
     message.success('提交成功')
   } catch (e: any) {
     message.error('提交失败: ' + (e.message || String(e)))
@@ -351,6 +352,25 @@ function handleStash() {
   stashSelectedFiles.value = new Set()
   stashMessage.value = ''
   showStashDialog.value = true
+}
+
+async function handleRefresh() {
+  if (!repo.value) return
+  await Promise.all([
+    stagingStore.fetchStatus(repo.value.path),
+    commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
+    branchesStore.fetchBranches(repo.value.path),
+  ])
+  // 如果有选中的文件，重新加载其内容
+  if (selectedFile.value) {
+    const tempFile = selectedFile.value
+    const tempStaged = selectedFileStaged.value
+    selectedFile.value = null
+    await nextTick()
+    selectedFile.value = tempFile
+    selectedFileStaged.value = tempStaged
+  }
+  message.success('工作区已刷新')
 }
 
 function toggleStashFile(path: string) {
@@ -458,6 +478,7 @@ function getStatusClass(file: FileChange): string {
             &#8644;
           </NButton>
           <NButton size="small" @click="handleStash">Stash</NButton>
+          <NButton size="small" @click="handleRefresh" title="刷新">&#8635;</NButton>
         </div>
       </div>
 
