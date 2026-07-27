@@ -48,6 +48,12 @@ export interface ElectronAPI {
   dialog: {
     openFolder: () => Promise<string | null>
   }
+  settings: {
+    get: () => Promise<{ commitPrefixes: { global: string[]; projects: Record<string, string[]> }; terminalCommands: { global: string[]; projects: Record<string, string[]> } }>
+    save: (settings: { commitPrefixes: { global: string[]; projects: Record<string, string[]> }; terminalCommands: { global: string[]; projects: Record<string, string[]> } }) => Promise<void>
+    getCommitPrefixes: (repoPath?: string) => Promise<string[]>
+    getTerminalCommands: (repoPath?: string) => Promise<string[]>
+  }
   window: {
     minimize: () => void
     maximize: () => void

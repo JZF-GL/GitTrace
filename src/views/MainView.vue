@@ -25,6 +25,7 @@ watch(() => repoStore.currentRepo, async (repo) => {
     branchesStore.clear()
     return
   }
+  appStore.setActiveTab('history')
   await branchesStore.fetchBranches(repo.path)
   await Promise.all([
     commitsStore.fetchGraphForCurrent(repo.path, branchesStore.current),

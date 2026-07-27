@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { NSelect, useMessage } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useTerminalStore } from '../../stores/terminal'
+import { useSettingsStore } from '../../stores/settings'
 
 const repoStore = useRepositoryStore()
 const terminalStore = useTerminalStore()
+const settingsStore = useSettingsStore()
 const message = useMessage()
 const repo = computed(() => repoStore.currentRepo)
 
@@ -13,26 +15,13 @@ const input = ref('')
 const historyIndex = ref(-1)
 const outputRef = ref<HTMLElement | null>(null)
 
-const gitCommands = [
-  { label: 'git status', value: 'git status' },
-  { label: 'git add .', value: 'git add .' },
-  { label: 'git add -A', value: 'git add -A' },
-  { label: 'git commit -m ""', value: 'git commit -m ""' },
-  { label: 'git push', value: 'git push' },
-  { label: 'git pull', value: 'git pull' },
-  { label: 'git fetch', value: 'git fetch' },
-  { label: 'git log --oneline -20', value: 'git log --oneline -20' },
-  { label: 'git diff', value: 'git diff' },
-  { label: 'git diff --cached', value: 'git diff --cached' },
-  { label: 'git branch', value: 'git branch' },
-  { label: 'git branch -a', value: 'git branch -a' },
-  { label: 'git merge ', value: 'git merge ' },
-  { label: 'git stash', value: 'git stash' },
-  { label: 'git stash pop', value: 'git stash pop' },
-  { label: 'git checkout ', value: 'git checkout ' },
-  { label: 'git reset HEAD~1', value: 'git reset HEAD~1' },
-  { label: 'git restore ', value: 'git restore ' },
-]
+const gitCommands = computed(() =>
+  settingsStore.terminalCommands.map(c => ({ label: c, value: c }))
+)
+
+watch(() => repo.value, (r) => {
+  settingsStore.loadTerminalCommands(r?.path)
+}, { immediate: true })
 
 function handleCommandSelect(value: string) {
   input.value = value

@@ -5,6 +5,7 @@ import { useRepositoryStore } from '../../stores/repository'
 import { useStagingStore, type FileChange } from '../../stores/staging'
 import { useCommitsStore } from '../../stores/commits'
 import { useBranchesStore } from '../../stores/branches'
+import { useSettingsStore } from '../../stores/settings'
 import DiffViewer from './DiffViewer.vue'
 import ConflictResolver from '../conflict/ConflictResolver.vue'
 
@@ -12,6 +13,7 @@ const repoStore = useRepositoryStore()
 const stagingStore = useStagingStore()
 const commitsStore = useCommitsStore()
 const branchesStore = useBranchesStore()
+const settingsStore = useSettingsStore()
 const message = useMessage()
 const dialog = useDialog()
 const isNarrowLayout = inject<ComputedRef<boolean>>('isNarrowLayout', computed(() => false))
@@ -49,8 +51,9 @@ async function loadCommitHistory() {
   }
 }
 
-watch(() => repo.value, () => {
+watch(() => repo.value, (r) => {
   loadCommitHistory()
+  settingsStore.loadPrefixes(r?.path)
 }, { immediate: true })
 
 function handleCommitKeydown(e: KeyboardEvent) {
@@ -81,19 +84,9 @@ function handleCommitInput() {
   historyIndex.value = -1
 }
 
-const commitTypeOptions = [
-  { label: 'feat', value: 'feat' },
-  { label: 'fix', value: 'fix' },
-  { label: 'docs', value: 'docs' },
-  { label: 'style', value: 'style' },
-  { label: 'refactor', value: 'refactor' },
-  { label: 'perf', value: 'perf' },
-  { label: 'test', value: 'test' },
-  { label: 'build', value: 'build' },
-  { label: 'ci', value: 'ci' },
-  { label: 'chore', value: 'chore' },
-  { label: 'revert', value: 'revert' },
-]
+const commitTypeOptions = computed(() =>
+  settingsStore.commitPrefixes.map(p => ({ label: p, value: p }))
+)
 
 const stagedFiles = computed(() => stagingStore.stagedFiles)
 const unstagedFiles = computed(() => [...stagingStore.unstagedFiles, ...stagingStore.untrackedFiles])

@@ -79,6 +79,13 @@ const dialogAPI = {
   openFolder: () => ipcRenderer.invoke('dialog:open-folder'),
 }
 
+const settingsAPI = {
+  get: () => ipcRenderer.invoke('settings:get'),
+  save: (settings: any) => ipcRenderer.invoke('settings:save', settings),
+  getCommitPrefixes: (repoPath?: string) => ipcRenderer.invoke('settings:get-commit-prefixes', repoPath),
+  getTerminalCommands: (repoPath?: string) => ipcRenderer.invoke('settings:get-terminal-commands', repoPath),
+}
+
 const windowAPI = {
   minimize: () => ipcRenderer.send('window:minimize'),
   maximize: () => ipcRenderer.send('window:maximize'),
@@ -90,4 +97,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   repo: repoAPI,
   dialog: dialogAPI,
   window: windowAPI,
+  settings: settingsAPI,
 })

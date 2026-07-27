@@ -13,6 +13,7 @@ import RemotePanel from '../remote/RemotePanel.vue'
 import StashPanel from '../stash/StashPanel.vue'
 import Terminal from '../terminal/Terminal.vue'
 import GitLogPopup from '../git-log/GitLogPopup.vue'
+import SettingsModal from '../settings/SettingsModal.vue'
 
 const repoStore = useRepositoryStore()
 const commitsStore = useCommitsStore()
@@ -34,6 +35,8 @@ const activeTab = computed({
 const repo = computed(() => repoStore.currentRepo)
 const fileCount = computed(() => stagingStore.files.length)
 const branchName = computed(() => branchesStore.current)
+
+const showSettings = ref(false)
 
 async function handleRefresh() {
   if (!repo.value) return
@@ -61,9 +64,12 @@ async function handleRefresh() {
       </div>
       <div class="action-bar-right">
         <GitLogPopup />
+        <button class="action-btn" @click="showSettings = true" title="设置">&#9881;</button>
         <button class="action-btn" @click="handleRefresh" title="刷新">&#8635;</button>
       </div>
     </div>
+
+    <SettingsModal v-model:show="showSettings" />
 
     <!-- Tabs -->
     <div class="tab-container" ref="tabContainerRef">

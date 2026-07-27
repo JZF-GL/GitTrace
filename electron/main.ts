@@ -3,6 +3,7 @@ import { join } from 'path'
 import { registerGitHandlers } from './ipc/git-handlers'
 import { registerRepoHandlers } from './ipc/repo-handlers'
 import { registerDialogHandlers } from './ipc/dialog-handlers'
+import { registerSettingsHandlers } from './ipc/settings-handlers'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -55,6 +56,7 @@ app.whenReady().then(() => {
   registerGitHandlers()
   registerRepoHandlers()
   registerDialogHandlers()
+  registerSettingsHandlers()
 
   createWindow()
 
