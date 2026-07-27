@@ -15,6 +15,7 @@ export const useStagingStore = defineStore('staging', () => {
   const commitMessage = ref('')
   const ahead = ref(0)
   const behind = ref(0)
+  const tracking = ref('')
 
   // 判断是否是冲突状态
   function isConflict(index: string, workingDir: string): boolean {
@@ -65,6 +66,7 @@ export const useStagingStore = defineStore('staging', () => {
       }
       ahead.value = status.ahead || 0
       behind.value = status.behind || 0
+      tracking.value = status.tracking || ''
       console.log('[StagingStore] files set to:', files.value)
     } catch (e) {
       console.error('[StagingStore] fetchStatus error:', e)
@@ -150,6 +152,7 @@ export const useStagingStore = defineStore('staging', () => {
     commitMessage,
     ahead,
     behind,
+    tracking,
     stagedFiles,
     unstagedFiles,
     untrackedFiles,

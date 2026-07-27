@@ -53,6 +53,10 @@ export function registerGitHandlers() {
     return gitService.push(repoPath, remote, branch, force)
   })
 
+  ipcMain.handle('git:publish', async (_event, repoPath: string, remote?: string, branch?: string) => {
+    return gitService.publish(repoPath, remote, branch)
+  })
+
   ipcMain.handle('git:pull', async (_event, repoPath: string, remote?: string, branch?: string) => {
     return gitService.pull(repoPath, remote, branch)
   })

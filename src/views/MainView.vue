@@ -44,7 +44,7 @@ watch(() => appStore.activeTab, async (tab) => {
   <div class="app-container">
     <TitleBar />
     <div class="app-layout">
-      <Sidebar />
+      <Sidebar v-show="!appStore.sidebarCollapsed" />
       <div class="main-content">
         <RepoView v-if="hasRepo" />
         <EmptyState v-else />

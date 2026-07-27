@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick, inject, type ComputedRef } from 'vue'
 import { NButton, NInput, NSpace, NEmpty, NSelect, NModal, useMessage, useDialog } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useStagingStore, type FileChange } from '../../stores/staging'
@@ -14,13 +14,18 @@ const commitsStore = useCommitsStore()
 const branchesStore = useBranchesStore()
 const message = useMessage()
 const dialog = useDialog()
+const isNarrowLayout = inject<ComputedRef<boolean>>('isNarrowLayout', computed(() => false))
 
 const selectedFile = ref<string | null>(null)
 const selectedFileStaged = ref(false)
 const repo = computed(() => repoStore.currentRepo)
 const pushing = ref(false)
 const pulling = ref(false)
+const publishing = ref(false)
 const commitType = ref<string | null>(null)
+
+// 是否有远程跟踪分支
+const hasTrackingBranch = computed(() => !!stagingStore.tracking)
 
 // Stash dialog
 const showStashDialog = ref(false)
@@ -319,6 +324,26 @@ async function handleForcePush() {
   })
 }
 
+async function handlePublish() {
+  if (!repo.value || publishing.value) return
+  publishing.value = true
+  try {
+    const result = await window.electronAPI.git.publish(repo.value.path, 'origin', branchesStore.current)
+    if (result.success) {
+      message.success('发布成功')
+      await Promise.all([
+        stagingStore.fetchStatus(repo.value.path),
+        commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
+        branchesStore.fetchBranches(repo.value.path),
+      ])
+    } else {
+      message.error('发布失败: ' + result.message)
+    }
+  } finally {
+    publishing.value = false
+  }
+}
+
 async function handlePull() {
   if (!repo.value || pulling.value) return
   pulling.value = true
@@ -440,7 +465,7 @@ function getStatusClass(file: FileChange): string {
 </script>
 
 <template>
-  <div class="staging-area">
+  <div class="staging-area" :class="{ 'narrow-layout': isNarrowLayout }">
     <div class="staging-sidebar">
       <!-- Commit message -->
       <div class="commit-area">
@@ -470,13 +495,16 @@ function getStatusClass(file: FileChange): string {
           >
             提交
           </NButton>
-          <NButton size="small" :loading="pulling" :disabled="pushing" @click="handlePull">拉取</NButton>
-          <NButton size="small" :loading="pushing" :disabled="pulling" @click="handlePush">
-            推送 {{ stagingStore.ahead > 0 ? '(' + stagingStore.ahead + ')' : '' }}
-          </NButton>
-          <NButton size="small" :loading="pushing" :disabled="pulling" @click="handleForcePush" title="强制推送">
-            &#8644;
-          </NButton>
+          <template v-if="hasTrackingBranch">
+            <NButton size="small" :loading="pulling" :disabled="pushing" @click="handlePull">拉取</NButton>
+            <NButton size="small" :loading="pushing" :disabled="pulling" @click="handlePush">
+              推送 {{ stagingStore.ahead > 0 ? '(' + stagingStore.ahead + ')' : '' }}
+            </NButton>
+            <NButton size="small" :loading="pushing" :disabled="pulling" @click="handleForcePush" title="强制推送">
+              &#8644;
+            </NButton>
+          </template>
+          <NButton v-else size="small" :loading="publishing" @click="handlePublish">发布</NButton>
           <NButton size="small" @click="handleStash">Stash</NButton>
           <NButton size="small" @click="handleRefresh" title="刷新">&#8635;</NButton>
         </div>
@@ -663,7 +691,7 @@ function getStatusClass(file: FileChange): string {
 
 .staging-sidebar {
   width: 45%;
-  min-width: 300px;
+  min-width: 440px;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border-color);
@@ -838,6 +866,7 @@ function getStatusClass(file: FileChange): string {
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 100px;
 }
 
 .diff-container {
@@ -1081,5 +1110,18 @@ function getStatusClass(file: FileChange): string {
 
 .stash-file-item input[type="checkbox"] {
   cursor: pointer;
+}
+
+/* 响应式：窄屏时切换为上下布局 */
+.staging-area.narrow-layout {
+  flex-direction: column;
+}
+
+.staging-area.narrow-layout .staging-sidebar {
+  width: 100%;
+  min-width: unset;
+  max-height: 45%;
+  border-right: none;
+  border-bottom: 1px solid var(--border-color);
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, inject, type ComputedRef } from 'vue'
 import { NButton, NSpin, NEmpty } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import type { GraphCommit } from '../../stores/commits'
@@ -14,6 +14,7 @@ const emit = defineEmits<{
 
 const repoStore = useRepositoryStore()
 const repo = computed(() => repoStore.currentRepo)
+const isNarrowLayout = inject<ComputedRef<boolean>>('isNarrowLayout', computed(() => false))
 
 const files = ref<{ status: string; path: string }[]>([])
 const selectedFile = ref<string | null>(null)
@@ -111,7 +112,7 @@ function getDiffLines(text: string) {
       <span>{{ commit.date }}</span>
     </div>
 
-    <div class="panel-content">
+    <div class="panel-content" :class="{ 'narrow-layout': isNarrowLayout }">
       <!-- File list -->
       <div class="file-sidebar">
         <div class="file-header">修改的文件 ({{ files.length }})</div>
@@ -220,12 +221,24 @@ function getDiffLines(text: string) {
   overflow: hidden;
 }
 
+.panel-content.narrow-layout {
+  flex-direction: column;
+}
+
 .file-sidebar {
   width: 250px;
   min-width: 200px;
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
+}
+
+.narrow-layout .file-sidebar {
+  width: 100%;
+  min-width: unset;
+  max-height: 40%;
+  border-right: none;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .file-header {

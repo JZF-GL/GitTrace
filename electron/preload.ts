@@ -13,6 +13,7 @@ const gitAPI = {
   restore: (repoPath: string, files: string[]) => ipcRenderer.invoke('git:restore', repoPath, files),
   commit: (repoPath: string, message: string) => ipcRenderer.invoke('git:commit', repoPath, message),
   push: (repoPath: string, remote?: string, branch?: string, force?: boolean) => ipcRenderer.invoke('git:push', repoPath, remote, branch, force),
+  publish: (repoPath: string, remote?: string, branch?: string) => ipcRenderer.invoke('git:publish', repoPath, remote, branch),
   pull: (repoPath: string, remote?: string, branch?: string) => ipcRenderer.invoke('git:pull', repoPath, remote, branch),
   fetch: (repoPath: string, remote?: string) => ipcRenderer.invoke('git:fetch', repoPath, remote),
   branchList: async (repoPath: string) => {

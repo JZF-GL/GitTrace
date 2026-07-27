@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, provide } from 'vue'
 import { NTabs, NTabPane } from 'naive-ui'
+import { useElementSize } from '@vueuse/core'
 import { useRepositoryStore } from '../../stores/repository'
 import { useCommitsStore } from '../../stores/commits'
 import { useStagingStore } from '../../stores/staging'
@@ -17,6 +18,12 @@ const commitsStore = useCommitsStore()
 const stagingStore = useStagingStore()
 const branchesStore = useBranchesStore()
 const appStore = useAppStore()
+
+// 检测 tab-container 宽度
+const tabContainerRef = ref<HTMLElement | null>(null)
+const { width: tabContainerWidth } = useElementSize(tabContainerRef)
+const isNarrowLayout = computed(() => tabContainerWidth.value < 768)
+provide('isNarrowLayout', isNarrowLayout)
 
 const activeTab = computed({
   get: () => appStore.activeTab,
@@ -42,6 +49,9 @@ async function handleRefresh() {
     <!-- Top action bar -->
     <div class="action-bar">
       <div class="action-bar-left">
+        <button class="action-btn sidebar-toggle" @click="appStore.toggleSidebar()" :title="appStore.sidebarCollapsed ? '展开侧栏' : '收起侧栏'">
+          &#9776;
+        </button>
         <span class="repo-label">&#128451; {{ repo?.name }}</span>
         <span class="branch-label">
           <span class="branch-icon">&#128204;</span>
@@ -54,7 +64,7 @@ async function handleRefresh() {
     </div>
 
     <!-- Tabs -->
-    <div class="tab-container">
+    <div class="tab-container" ref="tabContainerRef">
       <NTabs v-model:value="activeTab" type="line" animated :tab-bar-gutter="20">
         <NTabPane name="history" tab="提交历史">
           <div class="tab-content">

@@ -212,6 +212,16 @@ export async function push(repoPath: string, remote?: string, branch?: string, f
   }
 }
 
+export async function publish(repoPath: string, remote?: string, branch?: string): Promise<any> {
+  try {
+    const git = getGit(repoPath)
+    await git.raw(['push', '-u', remote || 'origin', branch].filter(Boolean))
+    return { success: true, message: '发布成功' }
+  } catch (e: any) {
+    return { success: false, message: e.message || String(e) }
+  }
+}
+
 export async function pull(repoPath: string, remote?: string, branch?: string): Promise<any> {
   try {
     const git = getGit(repoPath)
