@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import * as gitService from '../services/git-service'
+import * as gitLog from '../services/git-log'
 
 export function registerGitHandlers() {
   ipcMain.handle('git:status', async (_event, repoPath: string) => {
@@ -228,5 +229,14 @@ export function registerGitHandlers() {
 
   ipcMain.handle('git:is-commit-on-current-branch', async (_event, repoPath: string, commitHash: string) => {
     return gitService.isCommitOnCurrentBranch(repoPath, commitHash)
+  })
+
+  // Git logs
+  ipcMain.handle('git:get-logs', async (_event, limit?: number) => {
+    return gitLog.getLogEntries(limit)
+  })
+
+  ipcMain.handle('git:clear-logs', async () => {
+    return gitLog.clearLogs()
   })
 }

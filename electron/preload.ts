@@ -59,6 +59,8 @@ const gitAPI = {
   exec: (repoPath: string, command: string) => ipcRenderer.invoke('git:exec', repoPath, command),
   commitStat: (repoPath: string, commitHash: string) => ipcRenderer.invoke('git:commit-stat', repoPath, commitHash),
   isCommitOnCurrentBranch: (repoPath: string, commitHash: string) => ipcRenderer.invoke('git:is-commit-on-current-branch', repoPath, commitHash),
+  getLogs: (limit?: number) => ipcRenderer.invoke('git:get-logs', limit),
+  clearLogs: () => ipcRenderer.invoke('git:clear-logs'),
   onProgress: (callback: (data: any) => void) => {
     ipcRenderer.on('git:progress', (_event, data) => callback(data))
   },

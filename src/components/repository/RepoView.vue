@@ -12,6 +12,7 @@ import StagingArea from '../staging/StagingArea.vue'
 import RemotePanel from '../remote/RemotePanel.vue'
 import StashPanel from '../stash/StashPanel.vue'
 import Terminal from '../terminal/Terminal.vue'
+import GitLogPopup from '../git-log/GitLogPopup.vue'
 
 const repoStore = useRepositoryStore()
 const commitsStore = useCommitsStore()
@@ -59,6 +60,7 @@ async function handleRefresh() {
         </span>
       </div>
       <div class="action-bar-right">
+        <GitLogPopup />
         <button class="action-btn" @click="handleRefresh" title="刷新">&#8635;</button>
       </div>
     </div>
@@ -117,6 +119,12 @@ async function handleRefresh() {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.action-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .repo-label {

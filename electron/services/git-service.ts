@@ -1,4 +1,6 @@
 import simpleGit, { SimpleGit, LogResult, StatusResult } from 'simple-git'
+import { basename } from 'path'
+import { addLogEntry } from './git-log'
 
 const gitInstances = new Map<string, SimpleGit>()
 
@@ -7,6 +9,18 @@ function getGit(repoPath: string): SimpleGit {
     gitInstances.set(repoPath, simpleGit(repoPath))
   }
   return gitInstances.get(repoPath)!
+}
+
+function logOperation(repoPath: string, operation: string, command: string, success: boolean, message: string, duration?: number) {
+  addLogEntry({
+    repoName: basename(repoPath),
+    repoPath,
+    operation,
+    command,
+    success,
+    message,
+    duration,
+  })
 }
 
 export async function execCommand(repoPath: string, command: string): Promise<{ stdout: string; stderr: string }> {
@@ -184,48 +198,65 @@ export async function restoreFiles(repoPath: string, files: string[]): Promise<v
 }
 
 export async function commit(repoPath: string, message: string): Promise<any> {
+  const start = Date.now()
   const git = getGit(repoPath)
-  const result = await git.commit(message)
-  return {
-    branch: result.branch,
-    commit: result.commit,
-    summary: {
-      changes: result.summary.changes,
-      insertions: result.summary.insertions,
-      deletions: result.summary.deletions,
-    },
+  try {
+    const result = await git.commit(message)
+    logOperation(repoPath, 'commit', `git commit -m "${message}"`, true, `提交成功: ${result.commit}`, Date.now() - start)
+    return {
+      branch: result.branch,
+      commit: result.commit,
+      summary: {
+        changes: result.summary.changes,
+        insertions: result.summary.insertions,
+        deletions: result.summary.deletions,
+      },
+    }
+  } catch (e: any) {
+    logOperation(repoPath, 'commit', `git commit -m "${message}"`, false, e.message || String(e), Date.now() - start)
+    throw e
   }
 }
 
 export async function push(repoPath: string, remote?: string, branch?: string, force?: boolean): Promise<any> {
+  const start = Date.now()
+  const cmd = force ? `git push --force ${remote || 'origin'} ${branch || ''}` : `git push ${remote || 'origin'} ${branch || ''}`
   try {
     const git = getGit(repoPath)
-    const args = ['--force', remote || 'origin', branch].filter(Boolean)
     if (force) {
       await git.raw(['push', '--force', remote || 'origin', branch].filter(Boolean))
     } else {
       await git.push(remote || 'origin', branch)
     }
+    logOperation(repoPath, 'push', cmd.trim(), true, force ? '强制推送成功' : '推送成功', Date.now() - start)
     return { success: true, message: force ? '强制推送成功' : '推送成功' }
   } catch (e: any) {
+    logOperation(repoPath, 'push', cmd.trim(), false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
 
 export async function publish(repoPath: string, remote?: string, branch?: string): Promise<any> {
+  const start = Date.now()
+  const cmd = `git push -u ${remote || 'origin'} ${branch || ''}`
   try {
     const git = getGit(repoPath)
     await git.raw(['push', '-u', remote || 'origin', branch].filter(Boolean))
+    logOperation(repoPath, 'publish', cmd.trim(), true, '发布成功', Date.now() - start)
     return { success: true, message: '发布成功' }
   } catch (e: any) {
+    logOperation(repoPath, 'publish', cmd.trim(), false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
 
 export async function pull(repoPath: string, remote?: string, branch?: string): Promise<any> {
+  const start = Date.now()
+  const cmd = `git pull ${remote || 'origin'} ${branch || ''}`
   try {
     const git = getGit(repoPath)
     const result = await git.pull(remote || 'origin', branch)
+    logOperation(repoPath, 'pull', cmd.trim(), true, '拉取成功', Date.now() - start)
     return { success: true, message: '拉取成功', summary: result.summary }
   } catch (e: any) {
     // Check if it's a merge conflict
@@ -233,6 +264,7 @@ export async function pull(repoPath: string, remote?: string, branch?: string): 
     try {
       const status = await git.status()
       if (status.conflicted.length > 0) {
+        logOperation(repoPath, 'pull', cmd.trim(), false, `合并冲突: ${status.conflicted.length} 个文件`, Date.now() - start)
         return { success: false, conflict: true, message: `合并冲突: ${status.conflicted.length} 个文件`, files: status.conflicted }
       }
     } catch {}
@@ -241,11 +273,15 @@ export async function pull(repoPath: string, remote?: string, branch?: string): 
 }
 
 export async function fetch(repoPath: string, remote?: string): Promise<any> {
+  const start = Date.now()
+  const cmd = `git fetch ${remote || 'origin'}`
   try {
     const git = getGit(repoPath)
     await git.fetch(remote || 'origin')
+    logOperation(repoPath, 'fetch', cmd, true, '获取成功', Date.now() - start)
     return { success: true, message: '获取成功' }
   } catch (e: any) {
+    logOperation(repoPath, 'fetch', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
@@ -357,45 +393,60 @@ export async function getBranchesAheadBehind(repoPath: string): Promise<Record<s
 }
 
 export async function branchCreate(repoPath: string, branchName: string, startPoint?: string): Promise<any> {
+  const start = Date.now()
   try {
     const git = getGit(repoPath)
     await git.checkoutLocalBranch(branchName)
+    logOperation(repoPath, 'branch', `git checkout -b ${branchName}`, true, `分支 ${branchName} 创建成功`, Date.now() - start)
     return { success: true, message: `分支 ${branchName} 创建成功` }
   } catch (e: any) {
+    logOperation(repoPath, 'branch', `git checkout -b ${branchName}`, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
 
 export async function branchDelete(repoPath: string, branchName: string, force?: boolean): Promise<any> {
+  const start = Date.now()
+  const cmd = force ? `git branch -D ${branchName}` : `git branch -d ${branchName}`
   try {
     const git = getGit(repoPath)
     await git.deleteLocalBranch(branchName, force)
+    logOperation(repoPath, 'branch', cmd, true, `分支 ${branchName} 已删除`, Date.now() - start)
     return { success: true, message: `分支 ${branchName} 已删除` }
   } catch (e: any) {
+    logOperation(repoPath, 'branch', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
 
 export async function checkout(repoPath: string, branch: string): Promise<any> {
+  const start = Date.now()
+  const cmd = `git checkout ${branch}`
   try {
     const git = getGit(repoPath)
     await git.checkout(branch)
+    logOperation(repoPath, 'checkout', cmd, true, `已切换到 ${branch}`, Date.now() - start)
     return { success: true, message: `已切换到 ${branch}` }
   } catch (e: any) {
+    logOperation(repoPath, 'checkout', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
 
 export async function merge(repoPath: string, branch: string): Promise<any> {
+  const start = Date.now()
+  const cmd = `git merge ${branch}`
   try {
     const git = getGit(repoPath)
     await git.merge([branch])
+    logOperation(repoPath, 'merge', cmd, true, `已将 ${branch} 合并到当前分支`, Date.now() - start)
     return { success: true, message: `已将 ${branch} 合并到当前分支` }
   } catch (e: any) {
     // 检查是否是合并冲突
     const git = getGit(repoPath)
     const status = await git.status()
     if (status.conflicted.length > 0) {
+      logOperation(repoPath, 'merge', cmd, false, `合并冲突: ${status.conflicted.length} 个文件有冲突`, Date.now() - start)
       return {
         success: false,
         conflict: true,
@@ -403,6 +454,7 @@ export async function merge(repoPath: string, branch: string): Promise<any> {
         files: status.conflicted,
       }
     }
+    logOperation(repoPath, 'merge', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
@@ -420,6 +472,8 @@ export async function stashList(repoPath: string): Promise<any> {
 }
 
 export async function stashPush(repoPath: string, message?: string, files?: string[]): Promise<any> {
+  const start = Date.now()
+  const cmd = `git stash push${message ? ` -m "${message}"` : ''}`
   try {
     const git = getGit(repoPath)
     const args = ['push', '--include-untracked']
@@ -430,16 +484,21 @@ export async function stashPush(repoPath: string, message?: string, files?: stri
       args.push('--', ...files)
     }
     await git.stash(args)
+    logOperation(repoPath, 'stash', cmd, true, '暂存成功', Date.now() - start)
     return { success: true, message: '暂存成功' }
   } catch (e: any) {
+    logOperation(repoPath, 'stash', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
 
 export async function stashPop(repoPath: string, stashRef?: string): Promise<any> {
+  const start = Date.now()
+  const cmd = `git stash pop${stashRef ? ` ${stashRef}` : ''}`
   try {
     const git = getGit(repoPath)
     await git.stash(['pop', ...(stashRef ? [stashRef] : [])])
+    logOperation(repoPath, 'stash', cmd, true, '弹出成功', Date.now() - start)
     return { success: true, message: '弹出成功' }
   } catch (e: any) {
     // 检查是否是冲突
@@ -455,11 +514,15 @@ export async function stashPop(repoPath: string, stashRef?: string): Promise<any
 }
 
 export async function stashDrop(repoPath: string, stashRef: string): Promise<any> {
+  const start = Date.now()
+  const cmd = `git stash drop ${stashRef}`
   try {
     const git = getGit(repoPath)
     await git.stash(['drop', stashRef])
+    logOperation(repoPath, 'stash', cmd, true, '删除成功', Date.now() - start)
     return { success: true, message: '删除成功' }
   } catch (e: any) {
+    logOperation(repoPath, 'stash', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
@@ -512,13 +575,31 @@ export async function tagList(repoPath: string): Promise<any> {
 }
 
 export async function tagCreate(repoPath: string, tagName: string, ref?: string): Promise<any> {
-  const git = getGit(repoPath)
-  return git.addAnnotatedTag(tagName, '', ref)
+  const start = Date.now()
+  const cmd = `git tag ${tagName}${ref ? ` ${ref}` : ''}`
+  try {
+    const git = getGit(repoPath)
+    const result = await git.addAnnotatedTag(tagName, '', ref)
+    logOperation(repoPath, 'tag', cmd, true, `标签 ${tagName} 创建成功`, Date.now() - start)
+    return result
+  } catch (e: any) {
+    logOperation(repoPath, 'tag', cmd, false, e.message || String(e), Date.now() - start)
+    throw e
+  }
 }
 
 export async function tagDelete(repoPath: string, tagName: string): Promise<any> {
-  const git = getGit(repoPath)
-  return git.deleteTag(tagName)
+  const start = Date.now()
+  const cmd = `git tag -d ${tagName}`
+  try {
+    const git = getGit(repoPath)
+    const result = await git.deleteTag(tagName)
+    logOperation(repoPath, 'tag', cmd, true, `标签 ${tagName} 已删除`, Date.now() - start)
+    return result
+  } catch (e: any) {
+    logOperation(repoPath, 'tag', cmd, false, e.message || String(e), Date.now() - start)
+    throw e
+  }
 }
 
 export async function remoteList(repoPath: string): Promise<any> {
@@ -534,13 +615,29 @@ export async function remoteList(repoPath: string): Promise<any> {
 }
 
 export async function remoteAdd(repoPath: string, name: string, url: string): Promise<void> {
-  const git = getGit(repoPath)
-  await git.addRemote(name, url)
+  const start = Date.now()
+  const cmd = `git remote add ${name} ${url}`
+  try {
+    const git = getGit(repoPath)
+    await git.addRemote(name, url)
+    logOperation(repoPath, 'remote', cmd, true, `远程仓库 ${name} 添加成功`, Date.now() - start)
+  } catch (e: any) {
+    logOperation(repoPath, 'remote', cmd, false, e.message || String(e), Date.now() - start)
+    throw e
+  }
 }
 
 export async function remoteRemove(repoPath: string, name: string): Promise<void> {
-  const git = getGit(repoPath)
-  await git.removeRemote(name)
+  const start = Date.now()
+  const cmd = `git remote remove ${name}`
+  try {
+    const git = getGit(repoPath)
+    await git.removeRemote(name)
+    logOperation(repoPath, 'remote', cmd, true, `远程仓库 ${name} 已移除`, Date.now() - start)
+  } catch (e: any) {
+    logOperation(repoPath, 'remote', cmd, false, e.message || String(e), Date.now() - start)
+    throw e
+  }
 }
 
 export async function getConfig(repoPath: string): Promise<any> {

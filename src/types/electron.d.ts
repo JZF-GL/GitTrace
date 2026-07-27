@@ -35,6 +35,8 @@ export interface ElectronAPI {
     remoteAdd: (repoPath: string, name: string, url: string) => Promise<void>
     remoteRemove: (repoPath: string, name: string) => Promise<void>
     config: (repoPath: string) => Promise<any>
+    getLogs: (limit?: number) => Promise<any[]>
+    clearLogs: () => Promise<void>
     onProgress: (callback: (data: any) => void) => void
     removeProgressListener: () => void
   }
