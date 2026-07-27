@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { NModal, NRadioGroup, NRadio, NInput, NButton, NTag, useMessage } from 'naive-ui'
+import { NModal, NRadioGroup, NRadio, NInput, NButton, NTag, NAlert, useMessage } from 'naive-ui'
+import draggable from 'vuedraggable'
 import { useSettingsStore, type Settings } from '../../stores/settings'
 import { useRepositoryStore } from '../../stores/repository'
 
@@ -19,6 +20,20 @@ const prefixList = ref<string[]>([])
 const commandList = ref<string[]>([])
 const newPrefix = ref('')
 const newCommand = ref('')
+
+// 计算全局新增的项
+const globalPrefixes = computed(() => settingsStore.settings?.commitPrefixes.global ?? [])
+const globalCommands = computed(() => settingsStore.settings?.terminalCommands.global ?? [])
+
+const newGlobalPrefixes = computed(() => {
+  if (scope.value !== 'project' || !repoPath.value) return []
+  return globalPrefixes.value.filter(p => !prefixList.value.includes(p))
+})
+
+const newGlobalCommands = computed(() => {
+  if (scope.value !== 'project' || !repoPath.value) return []
+  return globalCommands.value.filter(c => !commandList.value.includes(c))
+})
 
 const DEFAULT_PREFIXES = ['feat', 'fix', 'docs', 'style', 'refactor', 'perf', 'test', 'build', 'ci', 'chore', 'revert']
 const DEFAULT_COMMANDS = [
@@ -72,6 +87,18 @@ function removePrefix(index: number) {
 
 function resetPrefixes() {
   prefixList.value = [...DEFAULT_PREFIXES]
+}
+
+function syncGlobalPrefixes() {
+  const count = newGlobalPrefixes.value.length
+  prefixList.value = [...prefixList.value, ...newGlobalPrefixes.value]
+  message.success(`已同步 ${count} 个全局前缀`)
+}
+
+function syncGlobalCommands() {
+  const count = newGlobalCommands.value.length
+  commandList.value = [...commandList.value, ...newGlobalCommands.value]
+  message.success(`已同步 ${count} 个全局命令`)
 }
 
 function addCommand() {
@@ -137,16 +164,20 @@ function handleClose() {
         <span class="section-title">提交前缀</span>
         <NButton text size="tiny" @click="resetPrefixes">恢复默认</NButton>
       </div>
-      <div class="tag-list">
-        <NTag
-          v-for="(item, i) in prefixList"
-          :key="item"
-          size="small"
-          closable
-          @close="removePrefix(i)"
-        >{{ item }}</NTag>
-        <span v-if="prefixList.length === 0" class="empty-hint">无自定义前缀</span>
-      </div>
+      <NAlert v-if="newGlobalPrefixes.length > 0" type="info" :show-icon="false" class="sync-alert">
+        全局有 {{ newGlobalPrefixes.length }} 个新前缀：
+        <NTag v-for="p in newGlobalPrefixes" :key="p" size="tiny" type="info" class="sync-tag">{{ p }}</NTag>
+        <NButton text type="primary" size="tiny" @click="syncGlobalPrefixes">同步</NButton>
+      </NAlert>
+      <draggable v-model="prefixList" :item-key="(item: string) => item" handle=".drag-handle" class="tag-list" ghost-class="drag-ghost">
+        <template #item="{ element, index }">
+          <NTag size="small" closable @close="removePrefix(index)" class="draggable-tag">
+            <span class="drag-handle">⠿</span>
+            {{ element }}
+          </NTag>
+        </template>
+      </draggable>
+      <span v-if="prefixList.length === 0" class="empty-hint">无自定义前缀</span>
       <div class="add-row">
         <NInput v-model:value="newPrefix" size="small" placeholder="输入新前缀" @keydown.enter="addPrefix" style="flex:1" />
         <NButton size="small" @click="addPrefix">添加</NButton>
@@ -159,16 +190,20 @@ function handleClose() {
         <span class="section-title">终端命令</span>
         <NButton text size="tiny" @click="resetCommands">恢复默认</NButton>
       </div>
-      <div class="tag-list">
-        <NTag
-          v-for="(item, i) in commandList"
-          :key="item"
-          size="small"
-          closable
-          @close="removeCommand(i)"
-        >{{ item }}</NTag>
-        <span v-if="commandList.length === 0" class="empty-hint">无自定义命令</span>
-      </div>
+      <NAlert v-if="newGlobalCommands.length > 0" type="info" :show-icon="false" class="sync-alert">
+        全局有 {{ newGlobalCommands.length }} 个新命令：
+        <NTag v-for="c in newGlobalCommands" :key="c" size="tiny" type="info" class="sync-tag">{{ c }}</NTag>
+        <NButton text type="primary" size="tiny" @click="syncGlobalCommands">同步</NButton>
+      </NAlert>
+      <draggable v-model="commandList" :item-key="(item: string) => item" handle=".drag-handle" class="tag-list" ghost-class="drag-ghost">
+        <template #item="{ element, index }">
+          <NTag size="small" closable @close="removeCommand(index)" class="draggable-tag">
+            <span class="drag-handle">⠿</span>
+            {{ element }}
+          </NTag>
+        </template>
+      </draggable>
+      <span v-if="commandList.length === 0" class="empty-hint">无自定义命令</span>
       <div class="add-row">
         <NInput v-model:value="newCommand" size="small" placeholder="输入新命令" @keydown.enter="addCommand" style="flex:1" />
         <NButton size="small" @click="addCommand">添加</NButton>
@@ -218,6 +253,25 @@ function handleClose() {
   min-height: 28px;
 }
 
+.draggable-tag {
+  cursor: default;
+}
+
+.drag-handle {
+  cursor: grab;
+  margin-right: 4px;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-ghost {
+  opacity: 0.5;
+}
+
 .empty-hint {
   font-size: 12px;
   color: var(--text-muted);
@@ -227,6 +281,19 @@ function handleClose() {
 .add-row {
   display: flex;
   gap: 8px;
+}
+
+.sync-alert {
+  margin-bottom: 10px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sync-tag {
+  margin: 0;
 }
 
 .modal-actions {
