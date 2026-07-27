@@ -268,6 +268,7 @@ export async function pull(repoPath: string, remote?: string, branch?: string): 
         return { success: false, conflict: true, message: `合并冲突: ${status.conflicted.length} 个文件`, files: status.conflicted }
       }
     } catch {}
+    logOperation(repoPath, 'pull', cmd.trim(), false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
@@ -506,9 +507,11 @@ export async function stashPop(repoPath: string, stashRef?: string): Promise<any
     try {
       const status = await git.status()
       if (status.conflicted.length > 0) {
+        logOperation(repoPath, 'stash', cmd, false, `弹出冲突: ${status.conflicted.length} 个文件`, Date.now() - start)
         return { success: false, conflict: true, message: `Stash 弹出有冲突: ${status.conflicted.length} 个文件`, files: status.conflicted }
       }
     } catch {}
+    logOperation(repoPath, 'stash', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
@@ -658,6 +661,8 @@ export async function getConfig(repoPath: string): Promise<any> {
 
 // P0: 撤销提交
 export async function resetCommit(repoPath: string, commitHash: string, mode: 'soft' | 'mixed' | 'hard'): Promise<any> {
+  const start = Date.now()
+  const cmd = `git reset --${mode} ${commitHash}`
   try {
     const git = getGit(repoPath)
     console.log('[GitService] resetCommit called with:', { commitHash, mode, repoPath })
@@ -665,29 +670,38 @@ export async function resetCommit(repoPath: string, commitHash: string, mode: 's
     // 验证是否重置成功
     const currentHead = await git.raw(['rev-parse', 'HEAD'])
     console.log('[GitService] resetCommit success, HEAD is now:', currentHead.trim())
+    logOperation(repoPath, 'reset', cmd, true, `已${mode === 'soft' ? '软' : mode === 'hard' ? '硬' : '混合'}重置到 ${commitHash.substring(0, 7)}`, Date.now() - start)
     return { success: true, message: `已${mode === 'soft' ? '软' : mode === 'hard' ? '硬' : '混合'}重置到 ${commitHash.substring(0, 7)}` }
   } catch (e: any) {
     console.error('[GitService] resetCommit error:', e.message)
+    logOperation(repoPath, 'reset', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
 
 // P0: Amend 提交
 export async function amendCommit(repoPath: string, message: string): Promise<any> {
+  const start = Date.now()
+  const cmd = `git commit --amend -m "${message}"`
   try {
     const git = getGit(repoPath)
     await git.raw(['commit', '--amend', '-m', message])
+    logOperation(repoPath, 'commit', cmd, true, '提交已修改', Date.now() - start)
     return { success: true, message: '提交已修改' }
   } catch (e: any) {
+    logOperation(repoPath, 'commit', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
 
 // P0: Cherry-pick
 export async function cherryPick(repoPath: string, commitHash: string): Promise<any> {
+  const start = Date.now()
+  const cmd = `git cherry-pick ${commitHash}`
   try {
     const git = getGit(repoPath)
     await git.raw(['cherry-pick', commitHash])
+    logOperation(repoPath, 'cherry-pick', cmd, true, `已 cherry-pick ${commitHash.substring(0, 7)}`, Date.now() - start)
     return { success: true, message: `已 cherry-pick ${commitHash.substring(0, 7)}` }
   } catch (e: any) {
     // 检查是否是冲突
@@ -695,19 +709,24 @@ export async function cherryPick(repoPath: string, commitHash: string): Promise<
     try {
       const status = await git.status()
       if (status.conflicted.length > 0) {
+        logOperation(repoPath, 'cherry-pick', cmd, false, `冲突: ${status.conflicted.length} 个文件`, Date.now() - start)
         return { success: false, conflict: true, message: `Cherry-pick 有冲突: ${status.conflicted.length} 个文件`, files: status.conflicted }
       }
     } catch {}
+    logOperation(repoPath, 'cherry-pick', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
 
 // P0: Rebase
 export async function rebase(repoPath: string, branch: string, interactive?: boolean): Promise<any> {
+  const start = Date.now()
+  const cmd = `git rebase${interactive ? ' -i' : ''} ${branch}`
   try {
     const git = getGit(repoPath)
     const args = interactive ? ['rebase', '-i', branch] : ['rebase', branch]
     await git.raw(args)
+    logOperation(repoPath, 'rebase', cmd, true, `已 rebase 到 ${branch}`, Date.now() - start)
     return { success: true, message: `已 rebase 到 ${branch}` }
   } catch (e: any) {
     // 检查是否是冲突
@@ -715,36 +734,48 @@ export async function rebase(repoPath: string, branch: string, interactive?: boo
     try {
       const status = await git.status()
       if (status.conflicted.length > 0) {
+        logOperation(repoPath, 'rebase', cmd, false, `冲突: ${status.conflicted.length} 个文件`, Date.now() - start)
         return { success: false, conflict: true, message: `Rebase 有冲突: ${status.conflicted.length} 个文件`, files: status.conflicted }
       }
     } catch {}
+    logOperation(repoPath, 'rebase', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
 
 // P0: Rebase --abort
 export async function rebaseAbort(repoPath: string): Promise<any> {
+  const start = Date.now()
+  const cmd = 'git rebase --abort'
   try {
     const git = getGit(repoPath)
     await git.raw(['rebase', '--abort'])
+    logOperation(repoPath, 'rebase', cmd, true, 'Rebase 已取消', Date.now() - start)
     return { success: true, message: 'Rebase 已取消' }
   } catch (e: any) {
+    logOperation(repoPath, 'rebase', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
 
 // P0: Merge
 export async function mergeBranch(repoPath: string, branch: string): Promise<any> {
+  const start = Date.now()
+  const cmd = `git merge ${branch}`
   try {
     const git = getGit(repoPath)
     const result = await git.merge([branch])
+    logOperation(repoPath, 'merge', cmd, true, `已合并 ${branch}`, Date.now() - start)
     return { success: true, message: `已合并 ${branch}`, summary: result?.summary }
   } catch (e: any) {
     // Check if it's a conflict
+    const git = getGit(repoPath)
     const status = await git.status()
     if (status.conflicted.length > 0) {
+      logOperation(repoPath, 'merge', cmd, false, `冲突: ${status.conflicted.length} 个文件`, Date.now() - start)
       return { success: false, conflict: true, message: `合并冲突: ${status.conflicted.length} 个文件有冲突`, files: status.conflicted }
     }
+    logOperation(repoPath, 'merge', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }

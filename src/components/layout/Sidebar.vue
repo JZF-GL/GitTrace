@@ -147,9 +147,10 @@ async function handlePullRemote(remoteBranch: string) {
   const remote = parts[0]
   const branch = parts.slice(1).join('/')
 
-  message.loading('正在合并远程分支...')
+  const loading = message.loading('正在合并远程分支...', { duration: 0 })
   try {
     const result = await window.electronAPI.git.pull(currentRepo.value.path, remote, branch)
+    loading.destroy()
     if (result?.conflict) {
       message.warning('合并有冲突，请在工作区解决')
       // 自动填充合并提交信息
@@ -167,6 +168,7 @@ async function handlePullRemote(remoteBranch: string) {
       stagingStore.fetchStatus(currentRepo.value.path),
     ])
   } catch (e: any) {
+    loading.destroy()
     message.error('合并失败: ' + (e.message || String(e)))
   }
 }
@@ -195,26 +197,30 @@ async function handleMergeBranch(branch: string) {
 
 async function handleSyncBranch(branch: string) {
   if (!currentRepo.value) return
-  message.loading('正在同步...')
+  const loading = message.loading('正在同步...', { duration: 0 })
   try {
     // 先拉取
     const pullResult = await window.electronAPI.git.pull(currentRepo.value.path, undefined, branch)
     if (pullResult?.conflict) {
+      loading.destroy()
       message.warning('拉取有冲突，请在工作区解决')
       appStore.setActiveTab('staging')
       await stagingStore.fetchStatus(currentRepo.value.path)
       return
     }
     if (!pullResult?.success) {
+      loading.destroy()
       message.error('拉取失败: ' + (pullResult?.message || '未知错误'))
       return
     }
     // 再推送
     const pushResult = await window.electronAPI.git.push(currentRepo.value.path, undefined, branch)
     if (!pushResult?.success) {
+      loading.destroy()
       message.error('推送失败: ' + (pushResult?.message || '未知错误'))
       return
     }
+    loading.destroy()
     message.success(`分支 ${branch} 同步成功`)
     await Promise.all([
       branchesStore.fetchBranches(currentRepo.value.path),
@@ -222,6 +228,7 @@ async function handleSyncBranch(branch: string) {
       commitsStore.fetchGraphForCurrent(currentRepo.value.path, branchesStore.current),
     ])
   } catch (e: any) {
+    loading.destroy()
     message.error('同步失败: ' + (e.message || String(e)))
   }
 }
