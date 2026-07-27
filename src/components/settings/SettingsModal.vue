@@ -167,7 +167,7 @@ function handleClose() {
       <NAlert v-if="newGlobalPrefixes.length > 0" type="info" :show-icon="false" class="sync-alert">
         全局有 {{ newGlobalPrefixes.length }} 个新前缀：
         <NTag v-for="p in newGlobalPrefixes" :key="p" size="tiny" type="info" class="sync-tag">{{ p }}</NTag>
-        <NButton text type="primary" size="tiny" @click="syncGlobalPrefixes">同步</NButton>
+        <NButton text type="primary" size="tiny" @click="syncGlobalPrefixes" style="margin-left: 8px">同步</NButton>
       </NAlert>
       <draggable v-model="prefixList" :item-key="(item: string) => item" handle=".drag-handle" class="tag-list" ghost-class="drag-ghost">
         <template #item="{ element, index }">
@@ -193,7 +193,7 @@ function handleClose() {
       <NAlert v-if="newGlobalCommands.length > 0" type="info" :show-icon="false" class="sync-alert">
         全局有 {{ newGlobalCommands.length }} 个新命令：
         <NTag v-for="c in newGlobalCommands" :key="c" size="tiny" type="info" class="sync-tag">{{ c }}</NTag>
-        <NButton text type="primary" size="tiny" @click="syncGlobalCommands">同步</NButton>
+        <NButton text type="primary" size="tiny" @click="syncGlobalCommands" style="margin-left: 8px">同步</NButton>
       </NAlert>
       <draggable v-model="commandList" :item-key="(item: string) => item" handle=".drag-handle" class="tag-list" ghost-class="drag-ghost">
         <template #item="{ element, index }">
@@ -288,12 +288,12 @@ function handleClose() {
   font-size: 12px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
 .sync-tag {
-  margin: 0;
+  margin: 0 2px;
 }
 
 .modal-actions {

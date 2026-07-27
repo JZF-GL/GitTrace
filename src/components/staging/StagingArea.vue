@@ -96,6 +96,7 @@ const conflictContent = ref('')
 const editedContent = ref('')
 const isEditingConflict = ref(false)
 const loadingConflict = ref(false)
+const showConflictResolver = ref(false)
 
 async function selectConflictFile(path: string) {
   selectedConflictFile.value = path
@@ -177,6 +178,13 @@ async function saveConflictResolution() {
   conflictContent.value = ''
   editedContent.value = ''
   isEditingConflict.value = false
+}
+
+async function handleResolveConflict(path: string) {
+  if (!repo.value) return
+  await window.electronAPI.git.add(repo.value.path, [path])
+  await stagingStore.fetchStatus(repo.value.path)
+  message.success('已标记为解决')
 }
 
 async function handleResolveAll() {
@@ -620,7 +628,7 @@ function getStatusClass(file: FileChange): string {
       </div>
       <ConflictResolver
         v-else-if="showConflictResolver && conflictFiles.length > 0"
-        :files="conflictFiles"
+        :files="conflictFiles.map(f => f.path)"
         @resolved="onConflictResolved"
       />
       <DiffViewer

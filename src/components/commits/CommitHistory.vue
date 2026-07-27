@@ -25,17 +25,17 @@ const loading = computed(() => commitsStore.loading)
 const repo = computed(() => repoStore.currentRepo)
 
 const branchOptions = computed(() => {
-  const options: { label: string; value: string | null }[] = [
-    { label: '当前分支', value: null },
-    { label: '所有分支', value: '__all__' },
+  const options = [
+    { label: '当前分支', value: undefined, type: 'option' as const },
+    { label: '所有分支', value: '__all__', type: 'option' as const },
   ]
   // 本地分支
   for (const b of branchesStore.branches) {
-    options.push({ label: b.name, value: b.name })
+    options.push({ label: b.name, value: b.name, type: 'option' as const })
   }
   // 远程分支
   for (const rb of branchesStore.remoteBranches) {
-    options.push({ label: rb, value: rb })
+    options.push({ label: rb, value: rb, type: 'option' as const })
   }
   return options
 })

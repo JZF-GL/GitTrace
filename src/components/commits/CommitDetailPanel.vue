@@ -64,6 +64,7 @@ watch(selectedFile, async (file) => {
 
 async function fetchDiff(commitHash: string, file: string) {
   console.log('[CommitDetailPanel] fetching diff for:', file)
+  if (!repo.value) return
   loadingDiff.value = true
   try {
     diff.value = await window.electronAPI.git.commitDiff(repo.value.path, commitHash, file)
