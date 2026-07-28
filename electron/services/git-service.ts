@@ -477,14 +477,62 @@ export async function stashPush(repoPath: string, message?: string, files?: stri
   const cmd = `git stash push${message ? ` -m "${message}"` : ''}`
   try {
     const git = getGit(repoPath)
-    const args = ['push', '--include-untracked']
+    const args = ['push']
+
+    // 只有在不指定文件时才使用 --include-untracked（Stash区的全部stash）
+    // 指定文件时不使用，避免把其他未跟踪文件也stash进去
+    if (!files || files.length === 0) {
+      args.push('--include-untracked')
+    }
+
     if (message) {
       args.push('-m', message)
     }
+
+    // 对于指定文件的stash，需要特殊处理
+    const untrackedFiles: string[] = []
+    let allStagedFiles: string[] = []
     if (files && files.length > 0) {
+      // 检查哪些文件是未跟踪的
+      const status = await git.status()
+      for (const file of files) {
+        const fileStatus = status.files.find(f => f.path === file)
+        if (fileStatus && fileStatus.index === '?' && fileStatus.working_dir === '?') {
+          untrackedFiles.push(file)
+        }
+      }
+
+      // 获取所有staged文件（除了用户选择的文件中已经是staged的）
+      allStagedFiles = status.files
+        .filter(f => f.index !== ' ' && f.index !== '?' && !files.includes(f.path))
+        .map(f => f.path)
+
+      // 对于未跟踪文件，需要先git add才能stash
+      if (untrackedFiles.length > 0) {
+        await git.add(untrackedFiles)
+      }
+
+      // unstage所有staged文件（除了用户选择的文件中已经是staged的）
+      // 这样git stash就不会自动包含这些staged文件
+      if (allStagedFiles.length > 0) {
+        await git.reset(['HEAD', ...allStagedFiles])
+      }
+
       args.push('--', ...files)
     }
+
     await git.stash(args)
+
+    // stash后，撤销之前add的未跟踪文件
+    if (untrackedFiles.length > 0) {
+      await git.reset(['HEAD', ...untrackedFiles])
+    }
+
+    // stash后，重新staged之前的staged文件
+    if (allStagedFiles.length > 0) {
+      await git.add(allStagedFiles)
+    }
+
     logOperation(repoPath, 'stash', cmd, true, '暂存成功', Date.now() - start)
     return { success: true, message: '暂存成功' }
   } catch (e: any) {

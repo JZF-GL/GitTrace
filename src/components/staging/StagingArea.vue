@@ -91,6 +91,10 @@ const commitTypeOptions = computed(() =>
 const stagedFiles = computed(() => stagingStore.stagedFiles)
 const unstagedFiles = computed(() => [...stagingStore.unstagedFiles, ...stagingStore.untrackedFiles])
 const conflictFiles = computed(() => stagingStore.conflictedFiles)
+// 所有文件（排除冲突），用于stash弹窗
+const allFilesForStash = computed(() =>
+  stagingStore.files.filter(f => !stagingStore.conflictedFiles.some(c => c.path === f.path))
+)
 const selectedConflictFile = ref<string | null>(null)
 const conflictContent = ref('')
 const editedContent = ref('')
@@ -410,7 +414,7 @@ function toggleStashFile(path: string) {
 }
 
 function selectAllStashFiles() {
-  const allFiles = unstagedFiles.value.map(f => f.path)
+  const allFiles = allFilesForStash.value.map(f => f.path)
   stashSelectedFiles.value = new Set(allFiles)
 }
 
@@ -651,11 +655,11 @@ function getStatusClass(file: FileChange): string {
       <div class="stash-actions">
         <NButton size="small" @click="selectAllStashFiles">全选</NButton>
         <NButton size="small" @click="deselectAllStashFiles">取消全选</NButton>
-        <span class="stash-count">已选 {{ stashSelectedFiles.size }} / {{ unstagedFiles.length }} 个文件</span>
+        <span class="stash-count">已选 {{ stashSelectedFiles.size }} / {{ allFilesForStash.length }} 个文件</span>
       </div>
       <div class="stash-file-list">
         <div
-          v-for="file in unstagedFiles"
+          v-for="file in allFilesForStash"
           :key="'stash-' + file.path"
           class="stash-file-item"
           :class="{ selected: stashSelectedFiles.has(file.path) }"
