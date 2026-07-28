@@ -248,7 +248,9 @@ async function handleAmend() {
         </NInput>
       </div>
       <div class="commit-list" v-if="!loading">
-        <NEmpty v-if="filteredCommits.length === 0" description="暂无提交记录" />
+        <div v-if="filteredCommits.length === 0" class="commit-list-empty">
+          <NEmpty v-if="filteredCommits.length === 0" description="暂无提交记录" />
+        </div>
         <CommitGraph
           v-else
           :commits="filteredCommits"
@@ -379,5 +381,13 @@ async function handleAmend() {
 
 .no-selection span {
   font-size: 48px;
+}
+
+.commit-list-empty{
+  height: 100%;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

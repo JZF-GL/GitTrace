@@ -79,7 +79,7 @@ async function handleRefresh() {
             <CommitHistory />
           </div>
         </NTabPane>
-        <NTabPane name="staging" :tab="`工作区${fileCount > 0 ? ' (' + fileCount + ')' : ''}`">
+        <NTabPane name="staging" tab="工作区">
           <div class="tab-content">
             <StagingArea />
           </div>
@@ -186,6 +186,8 @@ async function handleRefresh() {
 
 :deep(.n-tabs-tab .n-tabs-tab__label) {
   padding: 10px 20px;
+  min-width: 80px;
+  text-align: center;
 }
 
 :deep(.n-tabs-tab-pad){

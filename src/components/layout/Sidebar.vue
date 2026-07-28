@@ -44,12 +44,20 @@ function formatRemoteBranch(remote: string): string {
 async function openFolder() {
   const path = await window.electronAPI.dialog.openFolder()
   if (path) {
+    // 清理其他store的数据
+    commitsStore.clear()
+    stagingStore.clear()
+    branchesStore.clear()
     const entry = await repoStore.addRepo(path)
     repoStore.selectRepo(entry)
   }
 }
 
 async function selectRepo(repo: any) {
+  // 清理其他store的数据
+  commitsStore.clear()
+  stagingStore.clear()
+  branchesStore.clear()
   repoStore.selectRepo(repo)
 }
 

@@ -23,7 +23,7 @@ let hoverTimer: ReturnType<typeof setTimeout> | null = null
 async function fetchLogs() {
   loading.value = true
   try {
-    logs.value = await window.electronAPI.git.getLogs(50)
+    logs.value = await window.electronAPI.git.getLogs(20)
     logsLoaded.value = true
   } catch (e) {
     console.error('Failed to fetch logs:', e)
