@@ -20,32 +20,31 @@ export const useCommitsStore = defineStore('commits', () => {
   const loading = ref(false)
   const maxCount = ref(200)
   const branchFilter = ref<string | null>(null)
+  let fetchRequestId = 0
 
   async function fetchGraph(repoPath: string, branch?: string) {
+    const currentRequestId = ++fetchRequestId
     loading.value = true
     try {
       const raw = await window.electronAPI.git.logGraph(repoPath, maxCount.value, branch)
+      if (currentRequestId !== fetchRequestId) return
       console.log('[CommitsStore] raw log output:', raw.substring(0, 500))
       const parsed = parseGraphOutput(raw)
 
-      // 获取当前分支远程的所有 commit hashes，用于判断提交是否已推送
       const remoteCommits = await window.electronAPI.git.remoteCommits(repoPath)
+      if (currentRequestId !== fetchRequestId) return
       const remoteHashSet = new Set(remoteCommits)
 
-      // 标记已推送的提交
-      // 如果提交的 hash 存在于远程 commit 集合中，则已推送
       for (const commit of parsed) {
-        if (remoteHashSet.has(commit.hash)) {
-          commit.pushed = true
-        } else {
-          commit.pushed = false
-        }
+        commit.pushed = remoteHashSet.has(commit.hash)
       }
 
       console.log('[CommitsStore] parsed commits:', parsed.map(c => ({ hash: c.shortHash, column: c.column, parents: c.parentHashes.length })))
       commits.value = parsed
     } finally {
-      loading.value = false
+      if (currentRequestId === fetchRequestId) {
+        loading.value = false
+      }
     }
   }
 

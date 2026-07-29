@@ -961,11 +961,16 @@ function getStatusClass(file: FileChange): string {
   font-size: 12px;
   font-weight: 600;
   color: var(--accent-red);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .conflict-actions {
   display: flex;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .conflict-btn {

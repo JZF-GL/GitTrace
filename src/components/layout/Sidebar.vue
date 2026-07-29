@@ -54,7 +54,9 @@ async function openFolder() {
 }
 
 async function selectRepo(repo: any) {
-  // 清理其他store的数据
+  if (currentRepo.value?.id === repo.id) {
+    return
+  }
   commitsStore.clear()
   stagingStore.clear()
   branchesStore.clear()

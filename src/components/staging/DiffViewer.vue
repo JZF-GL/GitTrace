@@ -148,6 +148,10 @@ const parsedLines = computed(() => {
   font-family: 'Cascadia Code', 'Fira Code', 'SF Mono', monospace;
   font-size: 12px;
   color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .diff-stats {

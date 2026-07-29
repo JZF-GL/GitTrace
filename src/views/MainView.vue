@@ -18,22 +18,33 @@ const appStore = useAppStore()
 
 const hasRepo = computed(() => !!repoStore.currentRepo)
 
+let loadToken = 0
+
 watch(() => repoStore.currentRepo, async (repo) => {
+  const currentToken = ++loadToken
+
   if (!repo) {
     commitsStore.clear()
     stagingStore.clear()
     branchesStore.clear()
     return
   }
+
+  branchesStore.clear()
+  commitsStore.clear()
+  stagingStore.clear()
+
   appStore.setActiveTab('history')
+
   await branchesStore.fetchBranches(repo.path)
+  if (currentToken !== loadToken) return
+
   await Promise.all([
     commitsStore.fetchGraphForCurrent(repo.path, branchesStore.current),
     stagingStore.fetchStatus(repo.path),
   ])
 }, { immediate: true })
 
-// 切换到工作区时刷新状态
 watch(() => appStore.activeTab, async (tab) => {
   if (tab === 'staging' && repoStore.currentRepo) {
     await stagingStore.fetchStatus(repoStore.currentRepo.path)
