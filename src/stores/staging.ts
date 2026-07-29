@@ -48,6 +48,12 @@ export const useStagingStore = defineStore('staging', () => {
   )
 
   async function fetchStatus(repoPath: string) {
+    if (!repoPath) {
+      console.warn('[StagingStore] fetchStatus: repoPath is empty')
+      files.value = []
+      return
+    }
+    
     loading.value = true
     try {
       console.log('[StagingStore] fetchStatus called for:', repoPath)

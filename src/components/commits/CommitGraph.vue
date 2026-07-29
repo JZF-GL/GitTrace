@@ -337,8 +337,17 @@ function isLatestCommit(commit: GraphCommit | null): boolean {
   return props.commits[0].hash === commit.hash
 }
 
+function buildCurvePath(x1: number, y1: number, x2: number, y2: number): string {
+  if (x1 === x2) {
+    return `M ${x1} ${y1} L ${x2} ${y2}`
+  }
+  
+  const midY = (y1 + y2) / 2
+  return `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`
+}
+
 const allLines = computed(() => {
-  const lines: { x1: number; y1: number; x2: number; y2: number; color: string }[] = []
+  const lines: { path: string; color: string }[] = []
   const hashIndex = new Map<string, number>()
   props.commits.forEach((c, i) => hashIndex.set(c.hash, i))
 
@@ -357,10 +366,12 @@ const allLines = computed(() => {
           color = getLineColor(commit.column)
         }
         lines.push({
-          x1: getX(commit.column),
-          y1: getY(i),
-          x2: getX(parentColumn),
-          y2: getY(parentIndex),
+          path: buildCurvePath(
+            getX(commit.column),
+            getY(i),
+            getX(parentColumn),
+            getY(parentIndex),
+          ),
           color,
         })
       }
@@ -387,15 +398,13 @@ function formatDate(dateStr: string): string {
       :width="graphWidth"
       :height="graphHeight"
     >
-      <!-- Connection lines -->
-      <line
+      <!-- Connection lines (curves) -->
+      <path
         v-for="(line, li) in allLines"
         :key="'line-' + li"
-        :x1="line.x1"
-        :y1="line.y1"
-        :x2="line.x2"
-        :y2="line.y2"
+        :d="line.path"
         :stroke="line.color"
+        fill="none"
         stroke-width="2"
         stroke-opacity="0.5"
       />

@@ -46,8 +46,15 @@ watch(() => repoStore.currentRepo, async (repo) => {
 }, { immediate: true })
 
 watch(() => appStore.activeTab, async (tab) => {
-  if (tab === 'staging' && repoStore.currentRepo) {
-    await stagingStore.fetchStatus(repoStore.currentRepo.path)
+  if (tab === 'staging') {
+    const repo = repoStore.currentRepo
+    if (!repo) return
+    
+    try {
+      await stagingStore.fetchStatus(repo.path)
+    } catch (e) {
+      console.warn('[MainView] fetchStatus failed:', e)
+    }
   }
 })
 </script>
