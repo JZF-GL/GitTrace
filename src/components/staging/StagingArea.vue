@@ -364,7 +364,7 @@ async function handlePull() {
     } else if (result.conflict) {
       message.warning('拉取有冲突，请解决')
       // 自动填充合并提交信息
-      stagingStore.commitMessage = `Merge branch '${branchesStore.current}' of ${repo.value.name} into ${branchesStore.current}`
+      stagingStore.commitMessage = `Merge branch 'origin/${branchesStore.current}' into ${branchesStore.current}`
       await Promise.all([
         stagingStore.fetchStatus(repo.value.path),
         branchesStore.fetchBranches(repo.value.path),

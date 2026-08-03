@@ -164,7 +164,7 @@ async function handlePullRemote(remoteBranch: string) {
     if (result?.conflict) {
       message.warning('合并有冲突，请在工作区解决')
       // 自动填充合并提交信息
-      stagingStore.commitMessage = `Merge branch '${branchesStore.current}' of ${currentRepo.value.path} into ${branchesStore.current}`
+      stagingStore.commitMessage = `Merge branch '${branch}' of ${remote} into ${branchesStore.current}`
       appStore.setActiveTab('staging')
       await stagingStore.fetchStatus(currentRepo.value.path)
     } else if (result?.success) {
@@ -196,8 +196,7 @@ async function handleMergeBranch(branch: string) {
   } else if (result?.conflict) {
     message.warning(result.message || '合并有冲突，请在工作区解决')
     // 自动填充合并提交信息
-    const repoName = currentRepo.value.name
-    stagingStore.commitMessage = `Merge branch '${branchesStore.current}' into ${branch}`
+    stagingStore.commitMessage = `Merge branch '${branch}' into ${branchesStore.current}`
     appStore.setActiveTab('staging')
     await stagingStore.fetchStatus(currentRepo.value.path)
   } else {

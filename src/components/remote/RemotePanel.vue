@@ -59,7 +59,7 @@ async function handlePull() {
     if (result?.conflict) {
       message.warning('拉取有冲突，请在工作区解决')
       // 自动填充合并提交信息
-      stagingStore.commitMessage = `Merge branch '${branchesStore.current}' of ${repo.value.name} into ${branchesStore.current}`
+      stagingStore.commitMessage = `Merge branch 'origin/${branchesStore.current}' into ${branchesStore.current}`
     } else {
       progress.value = '拉取完成'
       message.success('拉取完成')
