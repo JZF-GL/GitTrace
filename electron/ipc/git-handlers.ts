@@ -93,6 +93,10 @@ export function registerGitHandlers() {
     return gitService.branchDelete(repoPath, branchName, force)
   })
 
+  ipcMain.handle('git:branch-delete-remote', async (_event, repoPath: string, remoteBranch: string) => {
+    return gitService.branchDeleteRemote(repoPath, remoteBranch)
+  })
+
   ipcMain.handle('git:checkout', async (_event, repoPath: string, branch: string) => {
     return gitService.checkout(repoPath, branch)
   })

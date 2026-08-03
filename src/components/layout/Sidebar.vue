@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { NButton, NInput, NModal, NDropdown, useMessage } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useBranchesStore } from '../../stores/branches'
@@ -22,9 +22,25 @@ const contextMenu = ref({
   show: false,
   x: 0,
   y: 0,
+  width: 160,
+  height: 180,
   branch: '' as string,
   isCurrent: false,
   isRemote: false,
+})
+
+const menuRef = ref<HTMLElement | null>(null)
+
+const menuStyle = computed(() => {
+  const { x, y } = contextMenu.value
+  const maxX = window.innerWidth - contextMenu.value.width - 8
+  const maxY = window.innerHeight - contextMenu.value.height - 8
+  const adjustedX = Math.min(Math.max(x, 8), maxX)
+  const adjustedY = Math.min(Math.max(y, 8), maxY)
+  return {
+    left: adjustedX + 'px',
+    top: adjustedY + 'px',
+  }
 })
 
 const currentRepo = computed(() => repoStore.currentRepo)
@@ -101,16 +117,37 @@ async function handleDeleteBranch(name: string) {
   }
 }
 
+async function handleDeleteRemoteBranch(remoteBranch: string) {
+  if (!currentRepo.value) return
+  const result = await branchesStore.deleteRemoteBranch(currentRepo.value.path, remoteBranch)
+  if (result?.success) {
+    message.success(result.message)
+  } else {
+    message.error('移除失败: ' + (result?.message || '未知错误'))
+  }
+}
+
 function showContextMenu(e: MouseEvent, branch: string, isCurrent: boolean, isRemote: boolean = false) {
   e.preventDefault()
   contextMenu.value = {
     show: true,
     x: e.clientX,
     y: e.clientY,
+    width: 160,
+    height: 180,
     branch,
     isCurrent,
     isRemote,
   }
+  
+  // 等待菜单渲染后获取实际尺寸
+  nextTick(() => {
+    if (menuRef.value) {
+      const rect = menuRef.value.getBoundingClientRect()
+      contextMenu.value.width = rect.width
+      contextMenu.value.height = rect.height
+    }
+  })
 }
 
 function hideContextMenu() {
@@ -140,6 +177,9 @@ async function handleContextAction(action: string) {
       break
     case 'delete':
       await handleDeleteBranch(branch)
+      break
+    case 'delete-remote':
+      await handleDeleteRemoteBranch(branch)
       break
     case 'sync':
       await handleSyncBranch(branch)
@@ -319,8 +359,9 @@ async function handleSyncBranch(branch: string) {
         <Teleport to="body">
           <div
             v-if="contextMenu.show"
+            ref="menuRef"
             class="context-menu"
-            :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+            :style="menuStyle"
           >
             <!-- 本地分支菜单 -->
             <template v-if="!contextMenu.isRemote">
@@ -341,6 +382,9 @@ async function handleSyncBranch(branch: string) {
             <template v-else>
               <div class="context-menu-item" @click="handleContextAction('pull-remote')">
                 合并远程到当前分支
+              </div>
+              <div class="context-menu-item danger" @click="handleContextAction('delete-remote')">
+                移除本地远程引用
               </div>
             </template>
           </div>

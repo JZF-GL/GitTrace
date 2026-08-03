@@ -70,6 +70,12 @@ export const useBranchesStore = defineStore('branches', () => {
     return result
   }
 
+  async function deleteRemoteBranch(repoPath: string, remoteBranch: string) {
+    const result = await window.electronAPI.git.branchDeleteRemote(repoPath, remoteBranch)
+    await fetchBranches(repoPath)
+    return result
+  }
+
   async function checkout(repoPath: string, branch: string) {
     const result = await window.electronAPI.git.checkout(repoPath, branch)
     if (result?.success) {
@@ -89,5 +95,5 @@ export const useBranchesStore = defineStore('branches', () => {
     current.value = ''
   }
 
-  return { branches, remoteBranches, current, loading, fetchBranches, refreshAll, createBranch, deleteBranch, checkout, merge, clear }
+  return { branches, remoteBranches, current, loading, fetchBranches, refreshAll, createBranch, deleteBranch, deleteRemoteBranch, checkout, merge, clear }
 })

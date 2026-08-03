@@ -420,6 +420,22 @@ export async function branchDelete(repoPath: string, branchName: string, force?:
   }
 }
 
+export async function branchDeleteRemote(repoPath: string, remoteBranch: string): Promise<any> {
+  const start = Date.now()
+  // remoteBranch 格式如 "origin/feature/foo"
+  const cmd = `git update-ref -d refs/remotes/${remoteBranch}`
+  try {
+    const git = getGit(repoPath)
+    // 删除本地远程跟踪引用
+    await git.raw(['update-ref', '-d', `refs/remotes/${remoteBranch}`])
+    logOperation(repoPath, 'branch', cmd, true, `已删除本地远程跟踪引用 ${remoteBranch}`, Date.now() - start)
+    return { success: true, message: `已删除远程跟踪引用 ${remoteBranch}` }
+  } catch (e: any) {
+    logOperation(repoPath, 'branch', cmd, false, e.message || String(e), Date.now() - start)
+    return { success: false, message: e.message || String(e) }
+  }
+}
+
 export async function checkout(repoPath: string, branch: string): Promise<any> {
   const start = Date.now()
   const cmd = `git checkout ${branch}`

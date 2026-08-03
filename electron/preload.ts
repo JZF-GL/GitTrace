@@ -27,6 +27,7 @@ const gitAPI = {
   branchesAheadBehind: (repoPath: string) => ipcRenderer.invoke('git:branches-ahead-behind', repoPath),
   branchCreate: (repoPath: string, branchName: string, startPoint?: string) => ipcRenderer.invoke('git:branch-create', repoPath, branchName, startPoint),
   branchDelete: (repoPath: string, branchName: string, force?: boolean) => ipcRenderer.invoke('git:branch-delete', repoPath, branchName, force),
+  branchDeleteRemote: (repoPath: string, remoteBranch: string) => ipcRenderer.invoke('git:branch-delete-remote', repoPath, remoteBranch),
   checkout: (repoPath: string, branch: string) => ipcRenderer.invoke('git:checkout', repoPath, branch),
   merge: (repoPath: string, branch: string) => ipcRenderer.invoke('git:merge', repoPath, branch),
   rebase: (repoPath: string, branch: string) => ipcRenderer.invoke('git:rebase', repoPath, branch),
