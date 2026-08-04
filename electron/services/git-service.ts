@@ -646,12 +646,16 @@ export async function tagCreate(repoPath: string, tagName: string, ref?: string)
   const cmd = `git tag ${tagName}${ref ? ` ${ref}` : ''}`
   try {
     const git = getGit(repoPath)
-    const result = await git.addAnnotatedTag(tagName, '', ref)
+    const args = ['tag', '-a', tagName, '-m', '']
+    if (ref) {
+      args.push(ref)
+    }
+    await git.raw(args)
     logOperation(repoPath, 'tag', cmd, true, `标签 ${tagName} 创建成功`, Date.now() - start)
-    return result
+    return { success: true, message: `标签 ${tagName} 创建成功` }
   } catch (e: any) {
     logOperation(repoPath, 'tag', cmd, false, e.message || String(e), Date.now() - start)
-    throw e
+    return { success: false, message: e.message || String(e) }
   }
 }
 
@@ -660,12 +664,12 @@ export async function tagDelete(repoPath: string, tagName: string): Promise<any>
   const cmd = `git tag -d ${tagName}`
   try {
     const git = getGit(repoPath)
-    const result = await git.deleteTag(tagName)
+    await git.raw(['tag', '-d', tagName])
     logOperation(repoPath, 'tag', cmd, true, `标签 ${tagName} 已删除`, Date.now() - start)
-    return result
+    return { success: true, message: `标签 ${tagName} 已删除` }
   } catch (e: any) {
     logOperation(repoPath, 'tag', cmd, false, e.message || String(e), Date.now() - start)
-    throw e
+    return { success: false, message: e.message || String(e) }
   }
 }
 

@@ -1,21 +1,50 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { NButton, NInput, NModal, NDropdown, useMessage } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useBranchesStore } from '../../stores/branches'
 import { useStagingStore } from '../../stores/staging'
 import { useCommitsStore } from '../../stores/commits'
 import { useAppStore } from '../../stores/app'
+import { useTagsStore } from '../../stores/tags'
 
 const repoStore = useRepositoryStore()
 const branchesStore = useBranchesStore()
 const stagingStore = useStagingStore()
 const commitsStore = useCommitsStore()
 const appStore = useAppStore()
+const tagsStore = useTagsStore()
 const message = useMessage()
 
 const showNewBranch = ref(false)
 const newBranchName = ref('')
+const showNewTag = ref(false)
+const newTagName = ref('')
+const createFromCurrentCommit = ref(true)
+
+// Tag context menu
+const tagContextMenu = ref({
+  show: false,
+  x: 0,
+  y: 0,
+  width: 160,
+  height: 60,
+  tag: '' as string,
+})
+
+const tagMenuRef = ref<HTMLElement | null>(null)
+
+const tagMenuStyle = computed(() => {
+  const { x, y } = tagContextMenu.value
+  const maxX = window.innerWidth - tagContextMenu.value.width - 8
+  const maxY = window.innerHeight - tagContextMenu.value.height - 8
+  const adjustedX = Math.min(Math.max(x, 8), maxX)
+  const adjustedY = Math.min(Math.max(y, 8), maxY)
+  return {
+    left: adjustedX + 'px',
+    top: adjustedY + 'px',
+  }
+})
 
 // Context menu state
 const contextMenu = ref({
@@ -76,7 +105,83 @@ async function selectRepo(repo: any) {
   commitsStore.clear()
   stagingStore.clear()
   branchesStore.clear()
+  tagsStore.clear()
   repoStore.selectRepo(repo)
+}
+
+// Load tags when repo changes
+watch(() => currentRepo.value, async (repo) => {
+  if (repo) {
+    await tagsStore.fetchTags(repo.path)
+  } else {
+    tagsStore.clear()
+  }
+})
+
+async function handleCreateTag() {
+  if (!currentRepo.value || !newTagName.value) return
+  const ref = createFromCurrentCommit.value && commitsStore.commits.length > 0 
+    ? commitsStore.commits[0].hash 
+    : undefined
+  const result = await tagsStore.createTag(currentRepo.value.path, newTagName.value, ref)
+  if (result?.success) {
+    message.success(`标签 ${newTagName.value} 创建成功`)
+    // 刷新分支和提交图
+    await Promise.all([
+      branchesStore.fetchBranches(currentRepo.value.path),
+      commitsStore.fetchGraphForCurrent(currentRepo.value.path, branchesStore.current),
+    ])
+  } else {
+    message.error('创建失败: ' + (result?.message || '未知错误'))
+  }
+  newTagName.value = ''
+  showNewTag.value = false
+}
+
+async function handleDeleteTag(tagName: string) {
+  if (!currentRepo.value) return
+  const result = await tagsStore.deleteTag(currentRepo.value.path, tagName)
+  if (result?.success) {
+    message.success(`标签 ${tagName} 已删除`)
+    // 刷新分支和提交图
+    await Promise.all([
+      branchesStore.fetchBranches(currentRepo.value.path),
+      commitsStore.fetchGraphForCurrent(currentRepo.value.path, branchesStore.current),
+    ])
+  } else {
+    message.error('删除失败: ' + (result?.message || '未知错误'))
+  }
+}
+
+function showTagContextMenu(e: MouseEvent, tag: string) {
+  e.preventDefault()
+  tagContextMenu.value = {
+    show: true,
+    x: e.clientX,
+    y: e.clientY,
+    width: 160,
+    height: 60,
+    tag,
+  }
+  nextTick(() => {
+    if (tagMenuRef.value) {
+      const rect = tagMenuRef.value.getBoundingClientRect()
+      tagContextMenu.value.width = rect.width
+      tagContextMenu.value.height = rect.height
+    }
+  })
+}
+
+function hideTagContextMenu() {
+  tagContextMenu.value.show = false
+}
+
+async function handleTagContextAction(action: string) {
+  const { tag } = tagContextMenu.value
+  hideTagContextMenu()
+  if (action === 'delete') {
+    await handleDeleteTag(tag)
+  }
 }
 
 async function handleCreateBranch() {
@@ -154,12 +259,17 @@ function hideContextMenu() {
   contextMenu.value.show = false
 }
 
+const handleDocumentClick = () => {
+  hideContextMenu()
+  hideTagContextMenu()
+}
+
 onMounted(() => {
-  document.addEventListener('click', hideContextMenu)
+  document.addEventListener('click', handleDocumentClick)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('click', hideContextMenu)
+  document.removeEventListener('click', handleDocumentClick)
 })
 
 async function handleContextAction(action: string) {
@@ -394,6 +504,45 @@ async function handleSyncBranch(branch: string) {
       </div>
     </div>
 
+    <!-- Tags section -->
+    <div v-if="currentRepo" class="sidebar-section tags-section">
+      <div class="section-header">
+        <span class="section-title">标签</span>
+        <div class="section-actions">
+          <NButton text size="small" @click="showNewTag = true">+</NButton>
+        </div>
+      </div>
+      <div class="tag-list">
+        <template v-if="tagsStore.tags.length > 0">
+          <div
+            v-for="tag in tagsStore.tags"
+            :key="tag.name"
+            class="tag-item"
+            @contextmenu="showTagContextMenu($event, tag.name)"
+          >
+            <span class="tag-icon">&#127991;</span>
+            <span class="tag-name">{{ tag.name }}</span>
+            <span class="tag-commit">{{ tag.commit?.substring(0, 7) }}</span>
+          </div>
+        </template>
+        <div v-else class="no-tags">暂无标签</div>
+
+        <!-- Tag context menu -->
+        <Teleport to="body">
+          <div
+            v-if="tagContextMenu.show"
+            ref="tagMenuRef"
+            class="context-menu"
+            :style="tagMenuStyle"
+          >
+            <div class="context-menu-item danger" @click="handleTagContextAction('delete')">
+              删除标签
+            </div>
+          </div>
+        </Teleport>
+      </div>
+    </div>
+
     <!-- New branch modal -->
     <NModal v-model:show="showNewBranch" title="创建新分支">
       <div class="modal-content">
@@ -407,6 +556,29 @@ async function handleSyncBranch(branch: string) {
           style="margin-top: 12px; width: 100%"
           @click="handleCreateBranch"
           :disabled="!newBranchName"
+        >
+          创建
+        </NButton>
+      </div>
+    </NModal>
+
+    <!-- New tag modal -->
+    <NModal v-model:show="showNewTag" title="创建新标签">
+      <div class="modal-content">
+        <NInput
+          v-model:value="newTagName"
+          placeholder="标签名称 (如 v1.0.0)"
+          @keyup.enter="handleCreateTag"
+        />
+        <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="fromCurrent" v-model="createFromCurrentCommit" />
+          <label for="fromCurrent">基于当前选中的提交</label>
+        </div>
+        <NButton
+          type="primary"
+          style="margin-top: 12px; width: 100%"
+          @click="handleCreateTag"
+          :disabled="!newTagName"
         >
           创建
         </NButton>
@@ -669,5 +841,55 @@ async function handleSyncBranch(branch: string) {
 
 .context-menu-item.danger:hover {
   background: rgba(248, 81, 73, 0.15);
+}
+
+.tags-section {
+  flex: 0 0 auto;
+  max-height: 30%;
+  overflow: hidden;
+}
+
+.tag-list {
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.tag-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.tag-item:hover {
+  background: var(--bg-hover);
+}
+
+.tag-icon {
+  font-size: 12px;
+  color: var(--accent-yellow, #f0b429);
+}
+
+.tag-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-commit {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.no-tags {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 </style>
