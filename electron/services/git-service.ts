@@ -275,10 +275,13 @@ export async function pull(repoPath: string, remote?: string, branch?: string): 
 
 export async function fetch(repoPath: string, remote?: string): Promise<any> {
   const start = Date.now()
-  const cmd = `git fetch ${remote || 'origin'}`
+  const args = remote
+    ? ['fetch', remote, '--prune']
+    : ['fetch', '--all', '--prune']
+  const cmd = `git ${args.join(' ')}`
   try {
     const git = getGit(repoPath)
-    await git.fetch(remote || 'origin')
+    await git.raw(args)
     logOperation(repoPath, 'fetch', cmd, true, '获取成功', Date.now() - start)
     return { success: true, message: '获取成功' }
   } catch (e: any) {

@@ -40,10 +40,10 @@ const showSettings = ref(false)
 
 async function handleRefresh() {
   if (!repo.value) return
+  await branchesStore.fetchBranches(repo.value.path, { fetchRemote: true })
   await Promise.all([
     commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
     stagingStore.fetchStatus(repo.value.path),
-    branchesStore.fetchBranches(repo.value.path),
   ])
 }
 </script>

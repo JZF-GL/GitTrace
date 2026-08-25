@@ -208,8 +208,12 @@ async function handleCheckout(branch: string) {
 
 async function handleRefreshBranches() {
   if (!currentRepo.value) return
-  await branchesStore.refreshAll(currentRepo.value.path)
-  message.success('分支已刷新')
+  const fetchResult = await branchesStore.refreshAll(currentRepo.value.path)
+  if (fetchResult?.success === false) {
+    message.warning('远程分支获取失败，已显示本地缓存状态')
+  } else {
+    message.success('分支已刷新')
+  }
 }
 
 async function handleDeleteBranch(name: string) {

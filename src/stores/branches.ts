@@ -10,25 +10,40 @@ export interface Branch {
   behind?: number
 }
 
+interface FetchBranchesOptions {
+  fetchRemote?: boolean
+}
+
 export const useBranchesStore = defineStore('branches', () => {
   const branches = ref<Branch[]>([])
   const remoteBranches = ref<string[]>([])
   const current = ref<string>('')
   const loading = ref(false)
+  let fetchRequestId = 0
 
-  async function fetchBranches(repoPath: string) {
+  async function fetchBranches(repoPath: string, options: FetchBranchesOptions = {}) {
+    const currentRequestId = ++fetchRequestId
+    let remoteFetchResult: any
     loading.value = true
     try {
+      if (options.fetchRemote) {
+        remoteFetchResult = await window.electronAPI.git.fetch(repoPath)
+        if (currentRequestId !== fetchRequestId) return remoteFetchResult
+        if (remoteFetchResult?.success === false) {
+          console.warn('[BranchStore] remote fetch failed:', remoteFetchResult.message)
+        }
+      }
+
       const result = await window.electronAPI.git.branchList(repoPath)
+      if (currentRequestId !== fetchRequestId) return remoteFetchResult
       console.log('[BranchStore] fetchBranches result:', result)
-      branches.value = result.local || []
-      remoteBranches.value = result.remote || []
-      current.value = result.current || ''
+      let nextBranches = result.local || []
 
       // 获取所有分支的 ahead/behind 信息
       try {
         const aheadBehind = await window.electronAPI.git.branchesAheadBehind(repoPath)
-        branches.value = branches.value.map(b => ({
+        if (currentRequestId !== fetchRequestId) return remoteFetchResult
+        nextBranches = nextBranches.map((b: Branch) => ({
           ...b,
           ahead: aheadBehind[b.name]?.ahead || 0,
           behind: aheadBehind[b.name]?.behind || 0,
@@ -37,12 +52,19 @@ export const useBranchesStore = defineStore('branches', () => {
         // 忽略错误
       }
 
+      if (currentRequestId !== fetchRequestId) return remoteFetchResult
+      branches.value = nextBranches
+      remoteBranches.value = result.remote || []
+      current.value = result.current || ''
       console.log('[BranchStore] branches set to:', branches.value)
     } catch (e) {
       console.error('[BranchStore] fetchBranches error:', e)
     } finally {
-      loading.value = false
+      if (currentRequestId === fetchRequestId) {
+        loading.value = false
+      }
     }
+    return remoteFetchResult
   }
 
   async function refreshAll(repoPath: string) {
@@ -50,12 +72,13 @@ export const useBranchesStore = defineStore('branches', () => {
     const stagingStore = useStagingStore()
     commitsStore.resetFilter()
     // 先获取分支信息，确保 current.value 是最新的
-    await fetchBranches(repoPath)
+    const fetchResult = await fetchBranches(repoPath, { fetchRemote: true })
     // 再获取提交记录和工作区状态
     await Promise.all([
       commitsStore.fetchGraphForCurrent(repoPath, current.value),
       stagingStore.fetchStatus(repoPath),
     ])
+    return fetchResult
   }
 
   async function createBranch(repoPath: string, name: string) {
@@ -90,9 +113,11 @@ export const useBranchesStore = defineStore('branches', () => {
   }
 
   function clear() {
+    fetchRequestId++
     branches.value = []
     remoteBranches.value = []
     current.value = ''
+    loading.value = false
   }
 
   return { branches, remoteBranches, current, loading, fetchBranches, refreshAll, createBranch, deleteBranch, deleteRemoteBranch, checkout, merge, clear }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRepositoryStore } from '../stores/repository'
 import { useCommitsStore } from '../stores/commits'
 import { useStagingStore } from '../stores/staging'
@@ -19,6 +19,44 @@ const appStore = useAppStore()
 const hasRepo = computed(() => !!repoStore.currentRepo)
 
 let loadToken = 0
+let focusRefreshPromise: Promise<void> | null = null
+
+async function refreshOnWindowFocus() {
+  const repo = repoStore.currentRepo
+  if (!repo || branchesStore.loading || focusRefreshPromise) return
+
+  const currentToken = loadToken
+  const refreshPromise = (async () => {
+    await branchesStore.fetchBranches(repo.path, { fetchRemote: true })
+    if (currentToken !== loadToken || repoStore.currentRepo?.path !== repo.path) return
+
+    await Promise.all([
+      commitsStore.fetchGraphForCurrent(repo.path, branchesStore.current),
+      stagingStore.fetchStatus(repo.path),
+    ])
+  })()
+
+  focusRefreshPromise = refreshPromise
+  try {
+    await refreshPromise
+  } finally {
+    if (focusRefreshPromise === refreshPromise) {
+      focusRefreshPromise = null
+    }
+  }
+}
+
+function handleWindowFocus() {
+  void refreshOnWindowFocus()
+}
+
+onMounted(() => {
+  window.addEventListener('focus', handleWindowFocus)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('focus', handleWindowFocus)
+})
 
 watch(() => repoStore.currentRepo, async (repo) => {
   const currentToken = ++loadToken
@@ -36,7 +74,7 @@ watch(() => repoStore.currentRepo, async (repo) => {
 
   appStore.setActiveTab('history')
 
-  await branchesStore.fetchBranches(repo.path)
+  await branchesStore.fetchBranches(repo.path, { fetchRemote: true })
   if (currentToken !== loadToken) return
 
   await Promise.all([
