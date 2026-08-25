@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, inject, type ComputedRef } from 'vue'
-import { NButton, NInput, NSpace, NEmpty, NSelect, NModal, useMessage, useDialog } from 'naive-ui'
+import { NButton, NInput, NSpace, NEmpty, NSelect, NModal, NTooltip, useMessage, useDialog } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useStagingStore, type FileChange } from '../../stores/staging'
 import { useCommitsStore } from '../../stores/commits'
@@ -532,7 +532,12 @@ function getStatusClass(file: FileChange): string {
             @click="selectConflictFile(file.path)"
           >
             <span class="file-status status-conflict">!</span>
-            <span class="file-path">{{ file.path }}</span>
+            <NTooltip :delay="300">
+              <template #trigger>
+                <span class="file-path">{{ file.path }}</span>
+              </template>
+              <span class="full-name-tooltip">{{ file.path }}</span>
+            </NTooltip>
             <button class="file-action resolve" @click.stop="handleResolveConflict(file.path)" title="标记为已解决">
               &#10003;
             </button>
@@ -555,7 +560,12 @@ function getStatusClass(file: FileChange): string {
             @click="handleSelectFile(file.path, true)"
           >
             <span class="file-status" :class="getStatusClass(file)">{{ getStatusSymbol(file) }}</span>
-            <span class="file-path">{{ file.path }}</span>
+            <NTooltip :delay="300">
+              <template #trigger>
+                <span class="file-path">{{ file.path }}</span>
+              </template>
+              <span class="full-name-tooltip">{{ file.path }}</span>
+            </NTooltip>
             <button class="file-action unstage" @click.stop="handleUnstageFile(file.path)" title="撤销暂存">
               &#8722;
             </button>
@@ -581,7 +591,12 @@ function getStatusClass(file: FileChange): string {
             @click="handleSelectFile(file.path, false)"
           >
             <span class="file-status" :class="getStatusClass(file)">{{ getStatusSymbol(file) }}</span>
-            <span class="file-path">{{ file.path }}</span>
+            <NTooltip :delay="300">
+              <template #trigger>
+                <span class="file-path">{{ file.path }}</span>
+              </template>
+              <span class="full-name-tooltip">{{ file.path }}</span>
+            </NTooltip>
             <div class="file-actions">
               <button class="file-action discard" @click.stop="handleDiscardChange(file.path)" title="放弃更改">
                 &#8634;
@@ -674,7 +689,12 @@ function getStatusClass(file: FileChange): string {
             @change="toggleStashFile(file.path)"
           />
           <span class="file-status" :class="getStatusClass(file)">{{ getStatusSymbol(file) }}</span>
-          <span class="file-path">{{ file.path }}</span>
+          <NTooltip :delay="300">
+            <template #trigger>
+              <span class="file-path">{{ file.path }}</span>
+            </template>
+            <span class="full-name-tooltip">{{ file.path }}</span>
+          </NTooltip>
         </div>
       </div>
     </div>
@@ -816,6 +836,12 @@ function getStatusClass(file: FileChange): string {
   white-space: nowrap;
   font-family: 'Cascadia Code', 'Fira Code', 'SF Mono', monospace;
   font-size: 12px;
+}
+
+.full-name-tooltip {
+  display: block;
+  max-width: min(560px, 80vw);
+  word-break: break-all;
 }
 
 .file-action {

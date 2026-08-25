@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { NButton, NSpace, NEmpty, useMessage } from 'naive-ui'
+import { NButton, NSpace, NEmpty, NTooltip, useMessage } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useStagingStore } from '../../stores/staging'
 
@@ -132,7 +132,12 @@ async function resolveWithEdited() {
           @click="selectedFile = file"
         >
           <span class="file-status">{{ resolvedFiles.has(file) ? '&#10003;' : '!' }}</span>
-          <span class="file-path">{{ file }}</span>
+          <NTooltip :delay="300">
+            <template #trigger>
+              <span class="file-path">{{ file }}</span>
+            </template>
+            <span class="full-name-tooltip">{{ file }}</span>
+          </NTooltip>
         </div>
       </div>
     </div>
@@ -169,6 +174,12 @@ async function resolveWithEdited() {
   display: flex;
   height: 100%;
   overflow: hidden;
+}
+
+.full-name-tooltip {
+  display: block;
+  max-width: min(560px, 80vw);
+  word-break: break-all;
 }
 
 .conflict-sidebar {

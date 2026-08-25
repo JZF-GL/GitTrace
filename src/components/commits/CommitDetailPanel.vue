@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, inject, type ComputedRef } from 'vue'
-import { NButton, NSpin, NEmpty } from 'naive-ui'
+import { NButton, NSpin, NEmpty, NTooltip } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import type { GraphCommit } from '../../stores/commits'
 
@@ -126,7 +126,12 @@ function getDiffLines(text: string) {
             @click="selectedFile = file.path"
           >
             <span class="file-status" :class="getStatusClass(file.status)">{{ getStatusSymbol(file.status) }}</span>
-            <span class="file-path">{{ file.path }}</span>
+            <NTooltip :delay="300">
+              <template #trigger>
+                <span class="file-path">{{ file.path }}</span>
+              </template>
+              <span class="full-name-tooltip">{{ file.path }}</span>
+            </NTooltip>
           </div>
         </div>
         <div v-else class="loading">
@@ -190,6 +195,12 @@ function getDiffLines(text: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.full-name-tooltip {
+  display: block;
+  max-width: min(560px, 80vw);
+  word-break: break-all;
 }
 
 .close-btn {

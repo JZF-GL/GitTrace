@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { NTooltip } from 'naive-ui'
 import type { FileChange } from '../../stores/staging'
 
 defineProps<{
@@ -56,7 +57,12 @@ function getShortPath(path: string): string {
       <span class="file-status" :class="getStatusClass(file)">
         {{ getStatusSymbol(file) }}
       </span>
-      <span class="file-path" :title="file.path">{{ getShortPath(file.path) }}</span>
+      <NTooltip :delay="300">
+        <template #trigger>
+          <span class="file-path">{{ getShortPath(file.path) }}</span>
+        </template>
+        <span class="full-name-tooltip">{{ file.path }}</span>
+      </NTooltip>
     </div>
   </div>
 </template>
@@ -110,5 +116,11 @@ function getShortPath(path: string): string {
   white-space: nowrap;
   font-family: 'SF Mono', 'Menlo', monospace;
   font-size: 12px;
+}
+
+.full-name-tooltip {
+  display: block;
+  max-width: min(560px, 80vw);
+  word-break: break-all;
 }
 </style>

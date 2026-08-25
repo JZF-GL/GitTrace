@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { NButton, NSpace, NEmpty, NInput, NModal, NSpin, useMessage } from 'naive-ui'
+import { NButton, NSpace, NEmpty, NInput, NModal, NSpin, NTooltip, useMessage } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useStagingStore } from '../../stores/staging'
 
@@ -166,7 +166,12 @@ onMounted(fetchStashList)
           <div class="stash-list" v-if="!loading">
             <NEmpty v-if="stashList.length === 0" description="暂无 Stash" :style="{ padding: '20px 0' }" />
             <div v-for="(stash, index) in stashList" :key="stash.hash" class="stash-item" :class="{ selected: selectedIndex === index }" @click="selectStash(index)">
-              <div class="stash-message">{{ stash.message || '(无消息)' }}</div>
+              <NTooltip :delay="300">
+                <template #trigger>
+                  <div class="stash-message">{{ stash.message || '(无消息)' }}</div>
+                </template>
+                <span class="full-name-tooltip">{{ stash.message || '(无消息)' }}</span>
+              </NTooltip>
               <div class="stash-meta">
                 <span class="stash-date">{{ formatDate(stash.date) }}</span>
                 <div class="stash-actions-row">
@@ -185,7 +190,12 @@ onMounted(fetchStashList)
             <NEmpty v-if="files.length === 0" description="无文件变更" :style="{ padding: '20px 0' }" />
             <div v-for="file in files" :key="file.path" class="file-item" :class="{ selected: selectedFile === file.path }" @click="selectedFile = file.path">
               <span class="file-status" :class="getStatusClass(file.status)">{{ getStatusSymbol(file.status) }}</span>
-              <span class="file-path">{{ file.path }}</span>
+              <NTooltip :delay="300">
+                <template #trigger>
+                  <span class="file-path">{{ file.path }}</span>
+                </template>
+                <span class="full-name-tooltip">{{ file.path }}</span>
+              </NTooltip>
             </div>
           </div>
           <div v-else class="loading"><NSpin size="small" /></div>
@@ -249,6 +259,7 @@ onMounted(fetchStashList)
 .status-renamed { color: var(--accent-orange); }
 .status-modified { color: var(--accent-blue); }
 .file-path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Cascadia Code', monospace; }
+.full-name-tooltip { display: block; max-width: min(560px, 80vw); word-break: break-all; }
 .diff-panel { flex: 1; overflow: auto; min-width: 0; }
 .diff-content { font-family: 'Cascadia Code', 'Fira Code', 'SF Mono', monospace; font-size: 12px; line-height: 1.5; }
 .diff-file-header { position: sticky; top: 0; z-index: 1; padding: 8px 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); }
