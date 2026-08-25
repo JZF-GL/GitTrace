@@ -362,7 +362,6 @@ async function handleSyncBranch(branch: string) {
   if (!currentRepo.value) return
   const loading = message.loading('正在同步...', { duration: 0 })
   try {
-    // 先拉取
     const pullResult = await window.electronAPI.git.pull(currentRepo.value.path, undefined, branch)
     if (pullResult?.conflict) {
       loading.destroy()
@@ -376,7 +375,6 @@ async function handleSyncBranch(branch: string) {
       message.error('拉取失败: ' + (pullResult?.message || '未知错误'))
       return
     }
-    // 再推送
     const pushResult = await window.electronAPI.git.push(currentRepo.value.path, undefined, branch)
     if (!pushResult?.success) {
       loading.destroy()

@@ -12,6 +12,7 @@ export interface Branch {
 
 interface FetchBranchesOptions {
   fetchRemote?: boolean
+  silent?: boolean
 }
 
 export const useBranchesStore = defineStore('branches', () => {
@@ -20,11 +21,16 @@ export const useBranchesStore = defineStore('branches', () => {
   const current = ref<string>('')
   const loading = ref(false)
   let fetchRequestId = 0
+  let loadingRequestId = 0
 
   async function fetchBranches(repoPath: string, options: FetchBranchesOptions = {}) {
     const currentRequestId = ++fetchRequestId
+    const showLoading = !options.silent
     let remoteFetchResult: any
-    loading.value = true
+    if (showLoading) {
+      loadingRequestId = currentRequestId
+      loading.value = true
+    }
     try {
       if (options.fetchRemote) {
         remoteFetchResult = await window.electronAPI.git.fetch(repoPath)
@@ -60,7 +66,7 @@ export const useBranchesStore = defineStore('branches', () => {
     } catch (e) {
       console.error('[BranchStore] fetchBranches error:', e)
     } finally {
-      if (currentRequestId === fetchRequestId) {
+      if (showLoading && loadingRequestId === currentRequestId) {
         loading.value = false
       }
     }
@@ -114,6 +120,7 @@ export const useBranchesStore = defineStore('branches', () => {
 
   function clear() {
     fetchRequestId++
+    loadingRequestId = 0
     branches.value = []
     remoteBranches.value = []
     current.value = ''

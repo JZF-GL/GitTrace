@@ -19,35 +19,30 @@ const appStore = useAppStore()
 const hasRepo = computed(() => !!repoStore.currentRepo)
 
 let loadToken = 0
-let focusRefreshPromise: Promise<void> | null = null
+const backgroundFetches = new Map<string, Promise<void>>()
 
-async function refreshOnWindowFocus() {
-  const repo = repoStore.currentRepo
-  if (!repo || branchesStore.loading || focusRefreshPromise) return
+function refreshRemoteInBackground(repoPath: string, currentToken: number) {
+  if (backgroundFetches.has(repoPath)) return
 
-  const currentToken = loadToken
-  const refreshPromise = (async () => {
-    await branchesStore.fetchBranches(repo.path, { fetchRemote: true })
-    if (currentToken !== loadToken || repoStore.currentRepo?.path !== repo.path) return
-
-    await Promise.all([
-      commitsStore.fetchGraphForCurrent(repo.path, branchesStore.current),
-      stagingStore.fetchStatus(repo.path),
-    ])
-  })()
-
-  focusRefreshPromise = refreshPromise
-  try {
-    await refreshPromise
-  } finally {
-    if (focusRefreshPromise === refreshPromise) {
-      focusRefreshPromise = null
+  const fetchPromise = (async () => {
+    try {
+      await window.electronAPI.git.fetch(repoPath)
+      if (currentToken !== loadToken || repoStore.currentRepo?.path !== repoPath) return
+      await branchesStore.fetchBranches(repoPath, { silent: true })
+    } catch {
+      // Background refresh must not interrupt normal repository usage.
     }
-  }
+  })().finally(() => {
+    backgroundFetches.delete(repoPath)
+  })
+
+  backgroundFetches.set(repoPath, fetchPromise)
 }
 
 function handleWindowFocus() {
-  void refreshOnWindowFocus()
+  const repo = repoStore.currentRepo
+  if (!repo || branchesStore.loading) return
+  refreshRemoteInBackground(repo.path, loadToken)
 }
 
 onMounted(() => {
@@ -55,6 +50,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  loadToken++
   window.removeEventListener('focus', handleWindowFocus)
 })
 
@@ -74,13 +70,16 @@ watch(() => repoStore.currentRepo, async (repo) => {
 
   appStore.setActiveTab('history')
 
-  await branchesStore.fetchBranches(repo.path, { fetchRemote: true })
+  await branchesStore.fetchBranches(repo.path)
   if (currentToken !== loadToken) return
 
   await Promise.all([
     commitsStore.fetchGraphForCurrent(repo.path, branchesStore.current),
     stagingStore.fetchStatus(repo.path),
   ])
+  if (currentToken !== loadToken) return
+
+  refreshRemoteInBackground(repo.path, currentToken)
 }, { immediate: true })
 
 watch(() => appStore.activeTab, async (tab) => {

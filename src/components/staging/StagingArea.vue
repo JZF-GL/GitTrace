@@ -287,7 +287,7 @@ async function handlePush() {
   try {
     const result = await window.electronAPI.git.push(repo.value.path)
     if (result.success) {
-      message.success('推送成功')
+      message.success(result.message || '推送成功')
       await Promise.all([
         stagingStore.fetchStatus(repo.value.path),
         commitsStore.fetchGraphForCurrent(repo.value.path, branchesStore.current),
@@ -296,6 +296,8 @@ async function handlePush() {
     } else {
       message.error('推送失败: ' + result.message)
     }
+  } catch (e: any) {
+    message.error('推送失败: ' + (e.message || String(e)))
   } finally {
     pushing.value = false
   }

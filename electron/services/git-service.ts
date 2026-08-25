@@ -3,10 +3,53 @@ import { basename } from 'path'
 import { addLogEntry } from './git-log'
 
 const gitInstances = new Map<string, SimpleGit>()
+const GIT_IDLE_TIMEOUT_MS = 60_000
+const UNSAFE_GIT_ENV_NAMES = new Set([
+  'editor',
+  'git_askpass',
+  'git_config',
+  'git_config_count',
+  'git_config_global',
+  'git_config_system',
+  'git_editor',
+  'git_exec_path',
+  'git_external_diff',
+  'git_pager',
+  'git_proxy_command',
+  'git_sequence_editor',
+  'git_ssh',
+  'git_ssh_command',
+  'git_template_dir',
+  'pager',
+  'prefix',
+  'ssh_askpass',
+])
+
+function createGit(repoPath: string): SimpleGit {
+  const environment = { ...process.env }
+  for (const name of Object.keys(environment)) {
+    if (UNSAFE_GIT_ENV_NAMES.has(name.toLowerCase())) {
+      delete environment[name]
+    }
+  }
+
+  const git = simpleGit({
+    baseDir: repoPath,
+    timeout: {
+      block: GIT_IDLE_TIMEOUT_MS,
+    },
+  })
+  git.env({
+    ...environment,
+    GIT_TERMINAL_PROMPT: '0',
+    GIT_MERGE_AUTOEDIT: 'no',
+  })
+  return git
+}
 
 function getGit(repoPath: string): SimpleGit {
   if (!gitInstances.has(repoPath)) {
-    gitInstances.set(repoPath, simpleGit(repoPath))
+    gitInstances.set(repoPath, createGit(repoPath))
   }
   return gitInstances.get(repoPath)!
 }
@@ -220,16 +263,47 @@ export async function commit(repoPath: string, message: string): Promise<any> {
 
 export async function push(repoPath: string, remote?: string, branch?: string, force?: boolean): Promise<any> {
   const start = Date.now()
-  const cmd = force ? `git push --force ${remote || 'origin'} ${branch || ''}` : `git push ${remote || 'origin'} ${branch || ''}`
+  let cmd = force ? `git push --force ${remote || 'origin'} ${branch || ''}` : `git push ${remote || 'origin'} ${branch || ''}`
   try {
     const git = getGit(repoPath)
     if (force) {
       await git.raw(['push', '--force', remote || 'origin', branch].filter(Boolean))
     } else {
-      await git.push(remote || 'origin', branch)
+      const status = await git.status()
+      const localBranch = branch || status.current
+      let targetRemote = remote || 'origin'
+      let targetBranch = localBranch
+
+      if (!localBranch) {
+        const message = '当前不在任何分支上，无法拉取并推送'
+        logOperation(repoPath, 'push', cmd.trim(), false, message, Date.now() - start)
+        return { success: false, message }
+      }
+
+      const upstreamRef = (await git.raw([
+        'for-each-ref',
+        '--format=%(upstream:short)',
+        `refs/heads/${localBranch}`,
+      ])).trim()
+
+      const separatorIndex = upstreamRef.indexOf('/')
+      if (separatorIndex > 0) {
+        const upstreamRemote = upstreamRef.slice(0, separatorIndex)
+        if (!remote) {
+          targetRemote = upstreamRemote
+        }
+        if (upstreamRemote === targetRemote) {
+          targetBranch = upstreamRef.slice(separatorIndex + 1)
+        }
+      }
+
+      const refspec = targetBranch ? `${localBranch}:${targetBranch}` : localBranch
+      cmd = `git push ${targetRemote} ${refspec}`
+      await git.push(targetRemote, refspec)
     }
-    logOperation(repoPath, 'push', cmd.trim(), true, force ? '强制推送成功' : '推送成功', Date.now() - start)
-    return { success: true, message: force ? '强制推送成功' : '推送成功' }
+    const message = force ? '强制推送成功' : '推送成功'
+    logOperation(repoPath, 'push', cmd.trim(), true, message, Date.now() - start)
+    return { success: true, message }
   } catch (e: any) {
     logOperation(repoPath, 'push', cmd.trim(), false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
@@ -280,7 +354,7 @@ export async function fetch(repoPath: string, remote?: string): Promise<any> {
     : ['fetch', '--all', '--prune']
   const cmd = `git ${args.join(' ')}`
   try {
-    const git = getGit(repoPath)
+    const git = createGit(repoPath)
     await git.raw(args)
     logOperation(repoPath, 'fetch', cmd, true, '获取成功', Date.now() - start)
     return { success: true, message: '获取成功' }
