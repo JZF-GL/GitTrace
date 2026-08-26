@@ -1,6 +1,6 @@
 {
   "name": "gittrace",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Git desktop client - visualize and manage your repositories",
   "main": "dist-electron/main.js",
   "scripts": {
