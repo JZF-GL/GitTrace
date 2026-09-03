@@ -18,6 +18,9 @@ const message = useMessage()
 
 const showNewBranch = ref(false)
 const newBranchName = ref('')
+const showCheckoutRemoteModal = ref(false)
+const checkoutRemoteSource = ref('')
+const checkoutRemoteLocalName = ref('')
 const showNewTag = ref(false)
 const newTagName = ref('')
 const createFromCurrentCommit = ref(true)
@@ -85,6 +88,16 @@ function formatRemoteBranch(remote: string): string {
   }
   return remote
 }
+
+const remoteTargetLocalBranch = computed(() => {
+  if (!contextMenu.value.isRemote || !contextMenu.value.branch) return ''
+  return formatRemoteBranch(contextMenu.value.branch)
+})
+
+const hasLocalBranchForRemote = computed(() => {
+  if (!remoteTargetLocalBranch.value) return false
+  return branches.value.some(b => b.name === remoteTargetLocalBranch.value)
+})
 
 async function openFolder() {
   const path = await window.electronAPI.dialog.openFolder()
@@ -276,6 +289,41 @@ onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick)
 })
 
+async function handleCheckoutRemote(remoteBranch: string, customLocalName?: string) {
+  if (!currentRepo.value) return
+  const loading = message.loading('正在检出分支...', { duration: 0 })
+  try {
+    const result = await branchesStore.checkoutRemoteBranch(
+      currentRepo.value.path,
+      remoteBranch,
+      customLocalName
+    )
+    loading.destroy()
+    if (result?.success) {
+      message.success(result.message)
+    } else {
+      message.error('检出失败: ' + (result?.message || '未知错误'))
+    }
+  } catch (e: any) {
+    loading.destroy()
+    message.error('检出失败: ' + (e.message || String(e)))
+  }
+}
+
+function openCheckoutRemoteModal(remoteBranch: string) {
+  checkoutRemoteSource.value = remoteBranch
+  checkoutRemoteLocalName.value = formatRemoteBranch(remoteBranch)
+  showCheckoutRemoteModal.value = true
+}
+
+async function handleConfirmCheckoutRemoteModal() {
+  if (!currentRepo.value || !checkoutRemoteSource.value || !checkoutRemoteLocalName.value) return
+  const source = checkoutRemoteSource.value
+  const target = checkoutRemoteLocalName.value.trim()
+  showCheckoutRemoteModal.value = false
+  await handleCheckoutRemote(source, target)
+}
+
 async function handleContextAction(action: string) {
   const { branch, isRemote } = contextMenu.value
   hideContextMenu()
@@ -285,6 +333,12 @@ async function handleContextAction(action: string) {
   switch (action) {
     case 'checkout':
       await handleCheckout(branch)
+      break
+    case 'checkout-remote':
+      await handleCheckoutRemote(branch)
+      break
+    case 'checkout-remote-as':
+      openCheckoutRemoteModal(branch)
       break
     case 'merge':
       await handleMergeBranch(branch)
@@ -460,6 +514,8 @@ async function handleSyncBranch(branch: string) {
             v-for="remote in remoteBranches"
             :key="remote"
             class="branch-item remote"
+            title="双击检出此分支"
+            @dblclick="handleCheckoutRemote(remote)"
             @contextmenu="showContextMenu($event, remote, false, true)"
           >
             <span class="branch-icon remote">&#128279;</span>
@@ -492,6 +548,12 @@ async function handleSyncBranch(branch: string) {
             </template>
             <!-- 远程分支菜单 -->
             <template v-else>
+              <div class="context-menu-item" @click="handleContextAction('checkout-remote')">
+                {{ hasLocalBranchForRemote ? `切换到本地分支 (${remoteTargetLocalBranch})` : `检出为本地分支 (${remoteTargetLocalBranch})` }}
+              </div>
+              <div class="context-menu-item" @click="handleContextAction('checkout-remote-as')">
+                检出为新本地分支...
+              </div>
               <div class="context-menu-item" @click="handleContextAction('pull-remote')">
                 合并远程到当前分支
               </div>
@@ -560,6 +622,28 @@ async function handleSyncBranch(branch: string) {
           :disabled="!newBranchName"
         >
           创建
+        </NButton>
+      </div>
+    </NModal>
+
+    <!-- Checkout remote branch modal -->
+    <NModal v-model:show="showCheckoutRemoteModal" :title="`从远程分支检出 (${checkoutRemoteSource})`">
+      <div class="modal-content">
+        <div style="margin-bottom: 8px; font-size: 12px; color: var(--text-secondary);">
+          本地分支名称：
+        </div>
+        <NInput
+          v-model:value="checkoutRemoteLocalName"
+          placeholder="本地分支名称"
+          @keyup.enter="handleConfirmCheckoutRemoteModal"
+        />
+        <NButton
+          type="primary"
+          style="margin-top: 12px; width: 100%"
+          @click="handleConfirmCheckoutRemoteModal"
+          :disabled="!checkoutRemoteLocalName"
+        >
+          检出
         </NButton>
       </div>
     </NModal>

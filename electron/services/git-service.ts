@@ -472,13 +472,18 @@ export async function getBranchesAheadBehind(repoPath: string): Promise<Record<s
 
 export async function branchCreate(repoPath: string, branchName: string, startPoint?: string): Promise<any> {
   const start = Date.now()
+  const cmd = startPoint ? `git checkout -b ${branchName} ${startPoint}` : `git checkout -b ${branchName}`
   try {
     const git = getGit(repoPath)
-    await git.checkoutLocalBranch(branchName)
-    logOperation(repoPath, 'branch', `git checkout -b ${branchName}`, true, `分支 ${branchName} 创建成功`, Date.now() - start)
+    if (startPoint) {
+      await git.checkoutBranch(branchName, startPoint)
+    } else {
+      await git.checkoutLocalBranch(branchName)
+    }
+    logOperation(repoPath, 'branch', cmd, true, `分支 ${branchName} 创建成功`, Date.now() - start)
     return { success: true, message: `分支 ${branchName} 创建成功` }
   } catch (e: any) {
-    logOperation(repoPath, 'branch', `git checkout -b ${branchName}`, false, e.message || String(e), Date.now() - start)
+    logOperation(repoPath, 'branch', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }
 }
@@ -522,6 +527,47 @@ export async function checkout(repoPath: string, branch: string): Promise<any> {
     logOperation(repoPath, 'checkout', cmd, true, `已切换到 ${branch}`, Date.now() - start)
     return { success: true, message: `已切换到 ${branch}` }
   } catch (e: any) {
+    logOperation(repoPath, 'checkout', cmd, false, e.message || String(e), Date.now() - start)
+    return { success: false, message: e.message || String(e) }
+  }
+}
+
+export async function checkoutRemoteBranch(repoPath: string, remoteBranch: string, targetLocalBranch?: string): Promise<any> {
+  const start = Date.now()
+  let localBranchName = targetLocalBranch?.trim()
+  if (!localBranchName) {
+    const parts = remoteBranch.split('/')
+    localBranchName = parts.length > 1 ? parts.slice(1).join('/') : remoteBranch
+  }
+
+  try {
+    const git = getGit(repoPath)
+    const branchSummary = await git.branchLocal()
+    const localBranchExists = Object.prototype.hasOwnProperty.call(branchSummary.branches, localBranchName)
+
+    if (localBranchExists) {
+      const cmd = `git checkout ${localBranchName}`
+      await git.checkout(localBranchName)
+      logOperation(repoPath, 'checkout', cmd, true, `本地已存在分支 ${localBranchName}，已切换`, Date.now() - start)
+      return {
+        success: true,
+        created: false,
+        branchName: localBranchName,
+        message: `本地已存在分支 ${localBranchName}，已切换到该分支`,
+      }
+    } else {
+      const cmd = `git checkout -b ${localBranchName} --track ${remoteBranch}`
+      await git.raw(['checkout', '-b', localBranchName, '--track', remoteBranch])
+      logOperation(repoPath, 'checkout', cmd, true, `已创建本地分支 ${localBranchName} 并跟踪 ${remoteBranch}`, Date.now() - start)
+      return {
+        success: true,
+        created: true,
+        branchName: localBranchName,
+        message: `已创建本地分支 ${localBranchName} 并跟踪 ${remoteBranch}`,
+      }
+    }
+  } catch (e: any) {
+    const cmd = `git checkout -b ${localBranchName} --track ${remoteBranch}`
     logOperation(repoPath, 'checkout', cmd, false, e.message || String(e), Date.now() - start)
     return { success: false, message: e.message || String(e) }
   }

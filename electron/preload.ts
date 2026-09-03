@@ -29,6 +29,7 @@ const gitAPI = {
   branchDelete: (repoPath: string, branchName: string, force?: boolean) => ipcRenderer.invoke('git:branch-delete', repoPath, branchName, force),
   branchDeleteRemote: (repoPath: string, remoteBranch: string) => ipcRenderer.invoke('git:branch-delete-remote', repoPath, remoteBranch),
   checkout: (repoPath: string, branch: string) => ipcRenderer.invoke('git:checkout', repoPath, branch),
+  checkoutRemoteBranch: (repoPath: string, remoteBranch: string, targetLocalBranch?: string) => ipcRenderer.invoke('git:checkout-remote-branch', repoPath, remoteBranch, targetLocalBranch),
   merge: (repoPath: string, branch: string) => ipcRenderer.invoke('git:merge', repoPath, branch),
   rebase: (repoPath: string, branch: string) => ipcRenderer.invoke('git:rebase', repoPath, branch),
   stashList: (repoPath: string) => ipcRenderer.invoke('git:stash-list', repoPath),

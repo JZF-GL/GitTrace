@@ -101,6 +101,10 @@ export function registerGitHandlers() {
     return gitService.checkout(repoPath, branch)
   })
 
+  ipcMain.handle('git:checkout-remote-branch', async (_event, repoPath: string, remoteBranch: string, targetLocalBranch?: string) => {
+    return gitService.checkoutRemoteBranch(repoPath, remoteBranch, targetLocalBranch)
+  })
+
   ipcMain.handle('git:merge', async (_event, repoPath: string, branch: string) => {
     return gitService.merge(repoPath, branch)
   })

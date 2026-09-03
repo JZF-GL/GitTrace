@@ -24,6 +24,7 @@ export interface ElectronAPI {
     branchDelete: (repoPath: string, branchName: string, force?: boolean) => Promise<any>
     branchDeleteRemote: (repoPath: string, remoteBranch: string) => Promise<any>
     checkout: (repoPath: string, branch: string) => Promise<any>
+    checkoutRemoteBranch: (repoPath: string, remoteBranch: string, targetLocalBranch?: string) => Promise<{ success: boolean; created?: boolean; branchName?: string; message: string }>
     merge: (repoPath: string, branch: string) => Promise<any>
     rebase: (repoPath: string, branch: string) => Promise<any>
     stashList: (repoPath: string) => Promise<any>
