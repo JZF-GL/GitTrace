@@ -3,6 +3,7 @@ import { ref, watch, computed } from 'vue'
 import { NButton, NSpace, NEmpty, NTooltip, useMessage } from 'naive-ui'
 import { useRepositoryStore } from '../../stores/repository'
 import { useStagingStore } from '../../stores/staging'
+import AdvancedConflictModal from './AdvancedConflictModal.vue'
 
 const props = defineProps<{
   files: string[]
@@ -21,6 +22,7 @@ const selectedFile = ref<string | null>(null)
 const conflictContent = ref('')
 const loading = ref(false)
 const resolvedFiles = ref<Set<string>>(new Set())
+const showAdvancedModal = ref(false)
 
 watch(() => props.files, (val) => {
   if (val.length > 0 && !selectedFile.value) {
@@ -115,6 +117,15 @@ async function resolveWithEdited() {
     message.error(resolved.message)
   }
 }
+
+async function handleAdvancedResolved() {
+  if (!selectedFile.value || !repo.value) return
+  resolvedFiles.value.add(selectedFile.value)
+  await stagingStore.fetchStatus(repo.value.path)
+  const next = props.files.find(f => !resolvedFiles.value.has(f))
+  selectedFile.value = next || null
+  if (!next) emit('resolved')
+}
 </script>
 
 <template>
@@ -146,6 +157,7 @@ async function resolveWithEdited() {
       <div class="editor-header" v-if="selectedFile">
         <span class="file-name">{{ selectedFile }}</span>
         <NSpace size="small">
+          <NButton size="small" type="info" @click="showAdvancedModal = true" :disabled="resolvedFiles.has(selectedFile)">高级解决</NButton>
           <NButton size="small" type="success" @click="resolveWithOurs" :disabled="resolvedFiles.has(selectedFile)">使用当前</NButton>
           <NButton size="small" type="warning" @click="resolveWithTheirs" :disabled="resolvedFiles.has(selectedFile)">使用传入</NButton>
           <NButton size="small" type="primary" @click="resolveWithEdited" :disabled="resolvedFiles.has(selectedFile)">使用编辑内容</NButton>
@@ -167,6 +179,15 @@ async function resolveWithEdited() {
       </div>
     </div>
   </div>
+
+  <!-- 高级解决弹窗 -->
+  <AdvancedConflictModal
+    v-if="repo && selectedFile"
+    v-model:show="showAdvancedModal"
+    :repo-path="repo.path"
+    :file-path="selectedFile"
+    @resolved="handleAdvancedResolved"
+  />
 </template>
 
 <style scoped>

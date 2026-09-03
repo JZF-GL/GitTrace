@@ -8,6 +8,7 @@ import { useBranchesStore } from '../../stores/branches'
 import { useSettingsStore } from '../../stores/settings'
 import DiffViewer from './DiffViewer.vue'
 import ConflictResolver from '../conflict/ConflictResolver.vue'
+import AdvancedConflictModal from '../conflict/AdvancedConflictModal.vue'
 
 const repoStore = useRepositoryStore()
 const stagingStore = useStagingStore()
@@ -101,6 +102,21 @@ const editedContent = ref('')
 const isEditingConflict = ref(false)
 const loadingConflict = ref(false)
 const showConflictResolver = ref(false)
+const showAdvancedConflictModal = ref(false)
+
+function openAdvancedConflictResolver() {
+  if (!selectedConflictFile.value) return
+  showAdvancedConflictModal.value = true
+}
+
+async function handleAdvancedConflictResolved() {
+  if (!repo.value) return
+  await stagingStore.fetchStatus(repo.value.path)
+  selectedConflictFile.value = null
+  conflictContent.value = ''
+  editedContent.value = ''
+  isEditingConflict.value = false
+}
 
 async function selectConflictFile(path: string) {
   selectedConflictFile.value = path
@@ -622,6 +638,7 @@ function getStatusClass(file: FileChange): string {
         <div class="conflict-file-header">
           <span class="conflict-file-path">{{ selectedConflictFile }}</span>
           <div class="conflict-actions">
+            <button class="conflict-btn advanced" @click="openAdvancedConflictResolver" title="打开三方对比视图高级解决">高级解决</button>
             <button class="conflict-btn ours" @click="resolveWithOurs">使用当前</button>
             <button class="conflict-btn theirs" @click="resolveWithTheirs">使用引入</button>
             <button class="conflict-btn manual" @click="startManualEdit">手动编辑</button>
@@ -707,6 +724,15 @@ function getStatusClass(file: FileChange): string {
       </NSpace>
     </template>
   </NModal>
+
+  <!-- 高级解决冲突弹窗 (三方对比与合并) -->
+  <AdvancedConflictModal
+    v-if="repo"
+    v-model:show="showAdvancedConflictModal"
+    :repo-path="repo.path"
+    :file-path="selectedConflictFile || ''"
+    @resolved="handleAdvancedConflictResolved"
+  />
 </template>
 
 <style scoped>
@@ -1011,6 +1037,12 @@ function getStatusClass(file: FileChange): string {
 }
 
 .conflict-btn:hover { opacity: 0.85; }
+
+.conflict-btn.advanced {
+  background: var(--accent-blue);
+  color: white;
+  font-weight: 500;
+}
 
 .conflict-btn.ours {
   background: var(--accent-green);
