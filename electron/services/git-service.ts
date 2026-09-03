@@ -131,9 +131,9 @@ export async function getLogGraph(repoPath: string, maxCount: number = 200, bran
   const git = getGit(repoPath)
   const args = [
     'log',
-    '--oneline',
+    '--topo-order',
     '--decorate',
-    '--format=%D|%H|%P|%h|%an|%ai|%s',
+    '--format=__GT_COMMIT__%D__GT_SEP__%H__GT_SEP__%P__GT_SEP__%h__GT_SEP__%an__GT_SEP__%ai__GT_SEP__%s',
     `--max-count=${maxCount}`,
   ]
   if (branch) {

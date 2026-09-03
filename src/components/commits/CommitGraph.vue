@@ -300,24 +300,60 @@ const rowHeight = 40
 const nodeRadius = 5
 const graphLeftPad = 8
 
-const graphWidth = computed(() => {
-  const maxCol = Math.max(...props.commits.map(c => c.column), 0)
-  return (maxCol + 1) * columnWidth + graphLeftPad
-})
-
 const graphHeight = computed(() => props.commits.length * rowHeight)
+
+const graphWidth = computed(() => {
+  let maxCol = 0
+  for (const c of props.commits) {
+    maxCol = Math.max(maxCol, c.column || 0)
+    if (c.activeLanes) {
+      for (const lane of c.activeLanes) {
+        maxCol = Math.max(maxCol, lane.col)
+      }
+    }
+    if (c.connections) {
+      for (const conn of c.connections) {
+        maxCol = Math.max(maxCol, conn.fromCol, conn.toCol)
+      }
+    }
+  }
+  return (maxCol + 1) * columnWidth + graphLeftPad + 12
+})
 
 function getX(col: number) {
   return col * columnWidth + graphLeftPad + nodeRadius
 }
 
-function getY(index: number) {
-  return index * rowHeight + rowHeight / 2
+function getY(row: number) {
+  return row * rowHeight + rowHeight / 2
 }
 
-function getLineColor(col: number): string {
+function getRowMaxCol(commit: GraphCommit): number {
+  let maxCol = commit.column ?? 0
+  if (commit.activeLanes) {
+    for (const lane of commit.activeLanes) {
+      if (lane.col > maxCol) {
+        maxCol = lane.col
+      }
+    }
+  }
+  if (commit.connections) {
+    for (const conn of commit.connections) {
+      if (conn.fromCol > maxCol) maxCol = conn.fromCol
+      if (conn.toCol > maxCol) maxCol = conn.toCol
+    }
+  }
+  return maxCol
+}
+
+function getRowIndent(commit: GraphCommit): number {
+  const maxCol = getRowMaxCol(commit)
+  return (maxCol + 1) * columnWidth + graphLeftPad + 2
+}
+
+function getLineColor(colOrColor: number): string {
   const colors = ['#58a6ff', '#3fb950', '#bc8cff', '#d29922', '#f85149', '#39d353', '#f778ba', '#79c0ff', '#56d364', '#d2a8ff']
-  return colors[col % colors.length]
+  return colors[Math.abs(colOrColor) % colors.length]
 }
 
 function parseRefs(refs: string): string[] {
@@ -337,32 +373,98 @@ function isLatestCommit(commit: GraphCommit | null): boolean {
   return props.commits[0].hash === commit.hash
 }
 
-const allLines = computed(() => {
-  const lines: { x1: number; y1: number; x2: number; y2: number; color: string }[] = []
-  const hashIndex = new Map<string, number>()
-  props.commits.forEach((c, i) => hashIndex.set(c.hash, i))
+interface GraphNode {
+  key: string
+  cx: number
+  cy: number
+  color: string
+  selected: boolean
+}
 
-  for (let i = 0; i < props.commits.length; i++) {
-    const commit = props.commits[i]
-    for (const parentHash of commit.parentHashes) {
-      const parentIndex = hashIndex.get(parentHash)
-      if (parentIndex !== undefined) {
-        const parentColumn = props.commits[parentIndex].column
-        // 对于合并线（从 column 0 到 column 1），使用目标列的颜色
-        const color = (commit.column === 0 && parentColumn === 1)
-          ? getLineColor(parentColumn)
-          : getLineColor(commit.column)
-        lines.push({
-          x1: getX(commit.column),
-          y1: getY(i),
-          x2: getX(parentColumn),
-          y2: getY(parentIndex),
-          color,
-        })
+const graphData = computed(() => {
+  const paths: { d: string; color: string }[] = []
+  const nodes: GraphNode[] = []
+
+  for (let r = 0; r < props.commits.length; r++) {
+    const commit = props.commits[r]
+    const yTop = r * rowHeight
+    const yBottom = yTop + rowHeight
+    const yMid = yTop + rowHeight / 2
+
+    // 1. 穿过当前行的垂直线 (Active Lanes)
+    const activeLanes = commit.activeLanes && commit.activeLanes.length > 0
+      ? commit.activeLanes
+      : [{ col: commit.column, color: commit.color ?? commit.column }]
+
+    for (const lane of activeLanes) {
+      const cx = getX(lane.col)
+      const color = getLineColor(lane.color)
+
+      if (lane.col === commit.column) {
+        // 当前节点所在列：根据有无向上进线、向下出线精准画线，杜绝上下多余的线段
+        if (commit.hasIncoming !== false) {
+          paths.push({
+            d: `M ${cx} ${yTop} L ${cx} ${yMid}`,
+            color,
+          })
+        }
+        if (commit.hasOutgoing !== false) {
+          paths.push({
+            d: `M ${cx} ${yMid} L ${cx} ${yBottom}`,
+            color,
+          })
+        }
+      } else {
+        // 其它泳道：检查是否在当前行被合并汇入了节点
+        const isMergedHere = commit.connections?.some(
+          conn => conn.fromCol === lane.col && conn.fromCol > conn.toCol
+        )
+        if (!isMergedHere) {
+          // 未在此处合并，正常垂直贯穿整行
+          paths.push({
+            d: `M ${cx} ${yTop} L ${cx} ${yBottom}`,
+            color,
+          })
+        }
       }
     }
+
+    // 2. 当前行的分叉与合并连接线 (Connections)
+    if (commit.connections) {
+      const R = columnWidth / 2
+      for (const conn of commit.connections) {
+        const xFrom = getX(conn.fromCol)
+        const xTo = getX(conn.toCol)
+        const color = getLineColor(conn.color)
+
+        if (conn.fromCol < conn.toCol) {
+          // 向右分叉：从当前节点中心横向出，拐弯处带圆弧，随后垂直入目标列底部
+          paths.push({
+            d: `M ${xFrom} ${yMid} L ${xTo - R} ${yMid} A ${R} ${R} 0 0 1 ${xTo} ${yMid + R} L ${xTo} ${yBottom}`,
+            color,
+          })
+        } else if (conn.fromCol > conn.toCol) {
+          // 向左合流：从外层列顶部垂直向下，拐弯处带圆弧，随后横向入当前节点中心
+          paths.push({
+            d: `M ${xFrom} ${yTop} L ${xFrom} ${yMid - R} A ${R} ${R} 0 0 1 ${xFrom - R} ${yMid} L ${xTo} ${yMid}`,
+            color,
+          })
+        }
+      }
+    }
+
+    // 3. 当前提交节点 (Commit Node)
+    const nodeX = getX(commit.column)
+    nodes.push({
+      key: commit.hash || `node-${r}`,
+      cx: nodeX,
+      cy: yMid,
+      color: getLineColor(commit.color ?? commit.column),
+      selected: props.selectedHash === commit.hash,
+    })
   }
-  return lines
+
+  return { paths, nodes }
 })
 
 function formatDate(dateStr: string): string {
@@ -376,37 +478,40 @@ function formatDate(dateStr: string): string {
 </script>
 
 <template>
-  <div class="commit-graph-wrapper">
+  <div
+    class="commit-graph-wrapper"
+    :style="{ minWidth: graphWidth ? graphWidth + 'px' : '100%' }"
+  >
     <!-- Single SVG overlay for all graph lines and nodes -->
     <svg
       class="graph-overlay"
       :width="graphWidth"
       :height="graphHeight"
     >
-      <!-- Connection lines -->
-      <line
-        v-for="(line, li) in allLines"
-        :key="'line-' + li"
-        :x1="line.x1"
-        :y1="line.y1"
-        :x2="line.x2"
-        :y2="line.y2"
-        :stroke="line.color"
+      <!-- Connection paths -->
+      <path
+        v-for="(path, pi) in graphData.paths"
+        :key="'path-' + pi"
+        :d="path.d"
+        :stroke="path.color"
         stroke-width="2"
-        stroke-opacity="0.5"
+        stroke-opacity="0.8"
+        fill="none"
+        stroke-linecap="round"
+        stroke-linejoin="round"
       />
 
       <!-- Commit nodes -->
-      <template v-for="(commit, index) in commits" :key="'node-' + commit.hash">
-        <circle
-          :cx="getX(commit.column)"
-          :cy="getY(index)"
-          :r="nodeRadius"
-          :fill="getLineColor(commit.column)"
-          :stroke="selectedHash === commit.hash ? '#ffffff' : 'transparent'"
-          stroke-width="2"
-        />
-      </template>
+      <circle
+        v-for="node in graphData.nodes"
+        :key="node.key"
+        :cx="node.cx"
+        :cy="node.cy"
+        :r="nodeRadius"
+        :fill="node.color"
+        :stroke="node.selected ? '#ffffff' : 'transparent'"
+        stroke-width="2"
+      />
     </svg>
 
     <!-- Commit rows (text content) -->
@@ -416,6 +521,7 @@ function formatDate(dateStr: string): string {
         :key="commit.hash"
         class="commit-row"
         :class="{ selected: selectedHash === commit.hash }"
+        :style="{ paddingLeft: getRowIndent(commit) + 'px' }"
         @click="disableHover(); emit('select', commit)"
         @contextmenu="disableHover(); showContextMenu($event, commit)"
         @mouseenter="enableHover(); showHoverTooltip($event, commit)"
@@ -516,17 +622,20 @@ function formatDate(dateStr: string): string {
 
 <style scoped>
 .commit-graph-wrapper {
-  display: flex;
+  position: relative;
+  width: 100%;
 }
 
 .graph-overlay {
-  flex-shrink: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
   pointer-events: none;
+  z-index: 1;
 }
 
 .commit-rows {
-  flex: 1;
-  min-width: 0;
+  width: 100%;
 }
 
 .commit-row {
@@ -535,6 +644,7 @@ function formatDate(dateStr: string): string {
   cursor: pointer;
   transition: background 0.1s;
   height: 40px;
+  box-sizing: border-box;
 }
 
 .commit-row:hover {
@@ -547,7 +657,7 @@ function formatDate(dateStr: string): string {
 
 .commit-info {
   flex: 1;
-  padding: 0 12px 0 8px;
+  padding: 0 12px 0 0;
   min-width: 0;
   overflow: hidden;
   display: flex;

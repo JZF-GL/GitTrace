@@ -1,6 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+export interface LaneConnection {
+  fromCol: number
+  toCol: number
+  color: number
+}
+
+export interface ActiveLane {
+  col: number
+  color: number
+}
+
 export interface GraphCommit {
   hash: string
   shortHash: string
@@ -9,10 +20,15 @@ export interface GraphCommit {
   date: string
   message: string
   column: number
+  color: number
   isMerge: boolean
   branch: string[]
   pushed?: boolean
   refs?: string
+  hasIncoming?: boolean
+  hasOutgoing?: boolean
+  activeLanes?: ActiveLane[]
+  connections?: LaneConnection[]
 }
 
 export const useCommitsStore = defineStore('commits', () => {
@@ -36,7 +52,9 @@ export const useCommitsStore = defineStore('commits', () => {
       const remoteHashSet = new Set(remoteCommits)
 
       for (const commit of parsed) {
-        commit.pushed = remoteHashSet.has(commit.hash)
+        if (commit.hash) {
+          commit.pushed = remoteHashSet.has(commit.hash)
+        }
       }
 
       console.log('[CommitsStore] parsed commits:', parsed.map(c => ({ hash: c.shortHash, column: c.column, parents: c.parentHashes.length })))
@@ -54,85 +72,157 @@ export const useCommitsStore = defineStore('commits', () => {
   }
 
   function parseGraphOutput(raw: string): GraphCommit[] {
-    const lines = raw.split('\n').filter(l => l.trim())
-    const result: GraphCommit[] = []
-
-    // First pass: collect all data (git log outputs newest first)
-    const hashes: string[] = []
-    const parentHashesMap = new Map<string, string[]>()
-    const metaMap = new Map<string, { shortHash: string; author: string; date: string; message: string; refs: string }>()
+    const lines = raw.split('\n')
+    const rawCommits: Array<{
+      hash: string
+      shortHash: string
+      parents: string[]
+      author: string
+      date: string
+      message: string
+      refs: string
+    }> = []
 
     for (const line of lines) {
-      const match = line.match(/^(.*)\|(.*)\|(.*)\|(.*)\|(.*)\|(.*)\|(.*)$/)
-      if (!match) continue
-      const [, refs, hash, parentsStr, shortHash, author, date, message] = match
-      hashes.push(hash)
-      parentHashesMap.set(hash, parentsStr ? parentsStr.split(' ') : [])
-      metaMap.set(hash, { shortHash, author, date, message, refs })
-    }
+      if (!line.trim()) continue
 
-    // Build hash to index lookup
-    const hashToIndex = new Map<string, number>()
-    for (let i = 0; i < hashes.length; i++) {
-      hashToIndex.set(hashes[i], i)
-    }
+      if (line.includes('__GT_COMMIT__')) {
+        const sepIdx = line.indexOf('__GT_COMMIT__')
+        const dataPart = line.substring(sepIdx + '__GT_COMMIT__'.length)
+        const parts = dataPart.split('__GT_SEP__')
 
-    // Second pass: assign columns
-    // Strategy: Main line is always column 0
-    // When a merge happens, the merge source (second parent) and its ancestors
-    // are on column 1 until they merge back to column 0
-    const columnMap = new Map<string, number>()
-
-    // First: identify which commits are on the main line
-    // Main line = following first parent chain from HEAD
-    const onMainLine = new Set<string>()
-    {
-      let currentHash = hashes[0] // HEAD
-      while (currentHash && hashToIndex.has(currentHash)) {
-        onMainLine.add(currentHash)
-        const idx = hashToIndex.get(currentHash)!
-        const parents = parentHashesMap.get(currentHash) || []
-        if (parents.length > 0) {
-          currentHash = parents[0] // Follow first parent
-        } else {
-          break
+        if (parts.length >= 6) {
+          const hash = parts[1]
+          if (!hash) continue
+          const parents = parts[2] ? parts[2].trim().split(/\s+/).filter(Boolean) : []
+          rawCommits.push({
+            hash,
+            shortHash: parts[3] || hash.substring(0, 7),
+            parents,
+            author: parts[4] || '',
+            date: parts[5] || '',
+            message: parts.slice(6).join('__GT_SEP__'),
+            refs: (parts[0] || '').trim(),
+          })
+        }
+      } else {
+        const match = line.match(/^(.*)\|(.*)\|(.*)\|(.*)\|(.*)\|(.*)\|(.*)$/)
+        if (match) {
+          const [, refs, hash, parentsStr, shortHash, author, date, message] = match
+          if (hash) {
+            rawCommits.push({
+              hash,
+              shortHash: shortHash || hash.substring(0, 7),
+              parents: parentsStr ? parentsStr.trim().split(/\s+/).filter(Boolean) : [],
+              author: author || '',
+              date: date || '',
+              message: message || '',
+              refs: (refs || '').trim(),
+            })
+          }
         }
       }
     }
 
-    // Second: assign columns
-    // Main line commits -> column 0
-    // Branch line commits -> column 1
-    for (let i = hashes.length - 1; i >= 0; i--) {
-      const hash = hashes[i]
+    // 运行拓扑泳道状态机算法
+    const lanes: (string | null)[] = []
+    const laneColors: number[] = []
+    let nextColor = 0
 
-      if (onMainLine.has(hash)) {
-        columnMap.set(hash, 0)
-      } else {
-        // Not on main line -> branch line -> column 1
-        columnMap.set(hash, 1)
+    const result: GraphCommit[] = []
+
+    for (let r = 0; r < rawCommits.length; r++) {
+      const commit = rawCommits[r]
+
+      // 1. 查找当前 commit 所在的泳道
+      let col = lanes.indexOf(commit.hash)
+      const hasIncoming = col !== -1
+
+      if (col === -1) {
+        col = lanes.indexOf(null)
+        if (col === -1) {
+          col = lanes.length
+          lanes.push(commit.hash)
+          laneColors.push(nextColor++)
+        } else {
+          lanes[col] = commit.hash
+          laneColors[col] = nextColor++
+        }
       }
-    }
 
-    // Third pass: build result in original order (newest first)
-    for (let i = 0; i < hashes.length; i++) {
-      const hash = hashes[i]
-      const parents = parentHashesMap.get(hash) || []
-      const meta = metaMap.get(hash)!
+      const commitCol = col
+      const commitColor = laneColors[commitCol]
 
-      const refs = meta.refs ? meta.refs.trim() : ''
+      // 记录进入该行时所有的活跃泳道（非 null）
+      const activeLanes: ActiveLane[] = []
+      for (let i = 0; i < lanes.length; i++) {
+        if (lanes[i] !== null) {
+          activeLanes.push({ col: i, color: laneColors[i] })
+        }
+      }
+
+      // 2. 更新泳道目标：commit 被其父提交替换
+      const parents = commit.parents
+      const connections: LaneConnection[] = []
+
+      if (parents.length === 0) {
+        lanes[commitCol] = null
+      } else {
+        // 第一父提交接管当前泳道
+        lanes[commitCol] = parents[0]
+
+        // 其他父提交（Merge 来源）分配或并入其他泳道
+        for (let pIdx = 1; pIdx < parents.length; pIdx++) {
+          const pHash = parents[pIdx]
+          let pCol = lanes.indexOf(pHash)
+          if (pCol === -1) {
+            pCol = lanes.indexOf(null)
+            if (pCol === -1) {
+              pCol = lanes.length
+              lanes.push(pHash)
+              laneColors.push(nextColor++)
+            } else {
+              lanes[pCol] = pHash
+              laneColors[pCol] = nextColor++
+            }
+          }
+          connections.push({ fromCol: commitCol, toCol: pCol, color: laneColors[pCol] })
+        }
+      }
+
+      // 3. 检查是否有多个泳道等待同一个父提交（合流并入）
+      for (let i = 0; i < lanes.length; i++) {
+        if (lanes[i] === null) continue
+        for (let j = i + 1; j < lanes.length; j++) {
+          if (lanes[i] === lanes[j]) {
+            connections.push({ fromCol: j, toCol: i, color: laneColors[j] })
+            lanes[j] = null
+          }
+        }
+      }
+
+      // 清理尾部空闲 null
+      while (lanes.length > 0 && lanes[lanes.length - 1] === null) {
+        lanes.pop()
+        laneColors.pop()
+      }
 
       result.push({
-        hash,
-        shortHash: meta.shortHash,
-        parentHashes: parents,
-        author: meta.author,
-        date: meta.date,
-        message: meta.message,
-        column: columnMap.get(hash) ?? 0,
-        isMerge: parents.length > 1,
+        hash: commit.hash,
+        shortHash: commit.shortHash,
+        parentHashes: commit.parents,
+        author: commit.author,
+        date: commit.date,
+        message: commit.message,
+        column: commitCol,
+        color: commitColor,
+        isMerge: commit.parents.length > 1,
         branch: [],
-        refs,
+        refs: commit.refs,
+        hasIncoming,
+        hasOutgoing: parents.length > 0,
+        activeLanes,
+        connections,
       })
     }
 
