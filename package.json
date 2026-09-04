@@ -1,11 +1,13 @@
 {
   "name": "gittrace",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Git desktop client - visualize and manage your repositories",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc && vite build && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ electron-builder",
+    "release": "node scripts/release.js",
+    "package": "node scripts/release.js",
     "preview": "vite preview",
     "electron:dev": "vite --config vite.config.ts"
   },
@@ -32,7 +34,11 @@
     "vue-tsc": "^2.0.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["electron", "esbuild", "vue-demi"]
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild",
+      "vue-demi"
+    ]
   },
   "build": {
     "appId": "com.gittrace.app",
