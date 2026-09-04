@@ -401,23 +401,27 @@ const graphData = computed(() => {
       const color = getLineColor(lane.color)
 
       if (lane.col === commit.column) {
-        // 当前节点所在列：根据有无向上进线、向下出线精准画线，杜绝上下多余的线段
+        // 当前节点所在列：根据有无向上进线画上方垂直线
         if (commit.hasIncoming !== false) {
           paths.push({
             d: `M ${cx} ${yTop} L ${cx} ${yMid}`,
             color,
           })
         }
-        if (commit.hasOutgoing !== false) {
+        // 下方出线：如果非合并提交且存在连向其他列的出线，则当前列下方不出线（避免断尾悬空线）
+        const hasOutgoingBranchOnly = !commit.isMerge && commit.connections?.some(
+          conn => conn.fromCol === commit.column && conn.toCol !== commit.column
+        )
+        if (commit.hasOutgoing !== false && !hasOutgoingBranchOnly) {
           paths.push({
             d: `M ${cx} ${yMid} L ${cx} ${yBottom}`,
             color,
           })
         }
       } else {
-        // 其它泳道：检查是否在当前行被合并汇入了节点
+        // 其它泳道：检查是否在当前行汇入了当前节点
         const isMergedHere = commit.connections?.some(
-          conn => conn.fromCol === lane.col && conn.fromCol > conn.toCol
+          conn => conn.fromCol === lane.col && commit.column === conn.toCol
         )
         if (!isMergedHere) {
           // 未在此处合并，正常垂直贯穿整行
@@ -437,18 +441,60 @@ const graphData = computed(() => {
         const xTo = getX(conn.toCol)
         const color = getLineColor(conn.color)
 
-        if (conn.fromCol < conn.toCol) {
-          // 向右分叉：从当前节点中心横向出，拐弯处带圆弧，随后垂直入目标列底部
-          paths.push({
-            d: `M ${xFrom} ${yMid} L ${xTo - R} ${yMid} A ${R} ${R} 0 0 1 ${xTo} ${yMid + R} L ${xTo} ${yBottom}`,
-            color,
-          })
-        } else if (conn.fromCol > conn.toCol) {
-          // 向左合流：从外层列顶部垂直向下，拐弯处带圆弧，随后横向入当前节点中心
-          paths.push({
-            d: `M ${xFrom} ${yTop} L ${xFrom} ${yMid - R} A ${R} ${R} 0 0 1 ${xFrom - R} ${yMid} L ${xTo} ${yMid}`,
-            color,
-          })
+        // 检查分叉/合并处的节点位置是在 fromCol 还是 toCol
+        if (commit.column === conn.fromCol) {
+          // 节点在 fromCol：从当前节点 (xFrom, yMid) 横向出，拐弯处带圆弧，垂直入目标列底部 (xTo, yBottom)
+          if (conn.fromCol < conn.toCol) {
+            // 向右下分叉
+            paths.push({
+              d: `M ${xFrom} ${yMid} L ${xTo - R} ${yMid} A ${R} ${R} 0 0 1 ${xTo} ${yMid + R} L ${xTo} ${yBottom}`,
+              color,
+            })
+          } else if (conn.fromCol > conn.toCol) {
+            // 向左下分叉/合流
+            paths.push({
+              d: `M ${xFrom} ${yMid} L ${xTo + R} ${yMid} A ${R} ${R} 0 0 0 ${xTo} ${yMid + R} L ${xTo} ${yBottom}`,
+              color,
+            })
+          } else {
+            paths.push({
+              d: `M ${xFrom} ${yMid} L ${xTo} ${yBottom}`,
+              color,
+            })
+          }
+        } else if (commit.column === conn.toCol) {
+          // 节点在 toCol：从上方来线 (xFrom, yTop) 垂直向下，拐弯处带圆弧，横向入当前节点 (xTo, yMid)
+          if (conn.fromCol > conn.toCol) {
+            // 从右上方来线汇入
+            paths.push({
+              d: `M ${xFrom} ${yTop} L ${xFrom} ${yMid - R} A ${R} ${R} 0 0 1 ${xFrom - R} ${yMid} L ${xTo} ${yMid}`,
+              color,
+            })
+          } else if (conn.fromCol < conn.toCol) {
+            // 从左上方来线汇入
+            paths.push({
+              d: `M ${xFrom} ${yTop} L ${xFrom} ${yMid - R} A ${R} ${R} 0 0 0 ${xFrom + R} ${yMid} L ${xTo} ${yMid}`,
+              color,
+            })
+          } else {
+            paths.push({
+              d: `M ${xFrom} ${yTop} L ${xTo} ${yMid}`,
+              color,
+            })
+          }
+        } else {
+          // 两个其他泳道在当前行合并
+          if (conn.fromCol < conn.toCol) {
+            paths.push({
+              d: `M ${xFrom} ${yTop} L ${xFrom} ${yMid - R} A ${R} ${R} 0 0 0 ${xFrom + R} ${yMid} L ${xTo - R} ${yMid} A ${R} ${R} 0 0 1 ${xTo} ${yMid + R} L ${xTo} ${yBottom}`,
+              color,
+            })
+          } else {
+            paths.push({
+              d: `M ${xFrom} ${yTop} L ${xFrom} ${yMid - R} A ${R} ${R} 0 0 1 ${xFrom - R} ${yMid} L ${xTo + R} ${yMid} A ${R} ${R} 0 0 0 ${xTo} ${yMid + R} L ${xTo} ${yBottom}`,
+              color,
+            })
+          }
         }
       }
     }
