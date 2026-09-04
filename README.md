@@ -151,7 +151,13 @@ pnpm run dev
 ### 3. 构建打包 (生成安装包)
 使用 `electron-builder` 生成 Windows 安装包（NSIS 可执行程序）及静态产物：
 ```bash
+# 方式一：直接打包当前版本
 pnpm run build
+
+# 方式二：自动递增版本号 (1.0.x -> 1.0.x+1)、提交 Git 并执行打包
+pnpm run release
+# 或
+pnpm run package
 ```
 打包输出目录位于 `release/` 文件夹下。
 
